@@ -1,0 +1,17 @@
+node_modules
+dist
+data
+release
+desktop-stage
+.env
+.env.*
+.git
+.github
+.claude
+deploy
+site
+docs
+desktop
+tests
+scripts
+*.log

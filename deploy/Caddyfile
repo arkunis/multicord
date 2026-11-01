@@ -1,0 +1,5 @@
+# Certificat HTTPS obtenu et renouvelé automatiquement (Let's Encrypt) pour l'adresse DOMAIN.
+{$DOMAIN} {
+	encode zstd gzip
+	reverse_proxy multicord:3000
+}

@@ -20,6 +20,8 @@ await initializeApplication(db);
 await initializeHandles(db);
 await ensureDefaultRoles(db);
 const app = express();
+// Derrière un proxy HTTPS (Caddy, Nginx…), TRUST_PROXY=1 fait lire la vraie adresse des visiteurs (limites anti-abus par IP).
+if (process.env.TRUST_PROXY) app.set('trust proxy', /^\d+$/.test(process.env.TRUST_PROXY) ? Number(process.env.TRUST_PROXY) : process.env.TRUST_PROXY);
 const http = createServer(app);
 const io = new Server(http, { maxHttpBufferSize: 64000, allowRequest: (req, callback) => {
   callback(null, !req.headers.origin || req.headers.origin === (process.env.APP_ORIGIN || `http://${req.headers.host}`));

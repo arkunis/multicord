@@ -8,3 +8,7 @@ test-results/
 release/
 desktop-stage/
 .claude/
+
+# Déploiement : secrets et certificats propres au VPS
+deploy/certs/*
+!deploy/certs/LISEZMOI.txt

@@ -82,6 +82,8 @@ Le créateur héberge les médias, mais un serveur central reste nécessaire pou
 
 ## Préparer un déploiement
 
+**Guide pas à pas pour un VPS (Docker, HTTPS automatique, relais TURN) : [deploy/README.md](deploy/README.md).**
+
 ```powershell
 npm run build
 npm start

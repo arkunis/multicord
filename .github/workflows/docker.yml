@@ -1,0 +1,42 @@
+# Vérifie que l'image serveur se construit et démarre, et que le déploiement VPS est valide.
+name: Docker
+
+on:
+  push:
+    branches: [main]
+    paths: ['Dockerfile', '.dockerignore', 'deploy/**', 'server/**', 'shared/**', 'src/**', 'package*.json', '.github/workflows/docker.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Construire l'image
+        run: docker build -t multicord:test .
+
+      - name: Démarrer et vérifier
+        run: |
+          docker run -d --name multicord -p 3000:3000 -e TRUST_PROXY=1 multicord:test
+          for i in $(seq 1 30); do curl -fsS http://localhost:3000/api/health && break; sleep 2; done
+          curl -fsS http://localhost:3000/api/health | grep -q '"service":"multicord"'
+          curl -fsS http://localhost:3000/ | grep -q '<div id="root">'
+          status=$(curl -s -o /dev/null -w '%{http_code}' -X POST http://localhost:3000/api/auth/register -H 'Content-Type: application/json' -d '{"email":"ci@example.test","username":"CI","password":"local-test-only-password"}')
+          test "$status" = 200
+          docker inspect --format '{{.State.Health.Status}}' multicord
+
+      - name: Valider le déploiement VPS
+        working-directory: deploy
+        run: |
+          cp .env.example .env
+          sed -i 's/^DOMAIN=$/DOMAIN=203-0-113-10.sslip.io/;s/^PUBLIC_IP=$/PUBLIC_IP=203.0.113.10/;s/^TURN_PASSWORD=$/TURN_PASSWORD=test/' .env
+          docker compose config --quiet
+          docker compose --profile local-db config --quiet
+
+      - name: Journaux en cas d'échec
+        if: failure()
+        run: docker logs multicord || true

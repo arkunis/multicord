@@ -1,0 +1,1 @@
+Placez ici le certificat CA de votre base hébergée (ex. ca.pem). Ce dossier n’est jamais publié.

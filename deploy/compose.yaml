@@ -1,0 +1,85 @@
+# Multicord sur un VPS : serveur, HTTPS automatique (Caddy + Let's Encrypt) et relais TURN pour les appels.
+# Lancement : docker compose up -d --build   (PostgreSQL sur le VPS : ajouter --profile local-db)
+name: multicord
+
+services:
+  multicord:
+    build: ..
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      APP_ORIGIN: https://${DOMAIN}
+      PUBLIC_URL: https://${DOMAIN}
+      TRUST_PROXY: "1"
+      TURN_URL: turn:${DOMAIN}:3478
+      TURN_USERNAME: ${TURN_USERNAME}
+      TURN_CREDENTIAL: ${TURN_PASSWORD}
+    volumes:
+      - multicord-data:/app/data
+      - ./certs:/app/certs:ro
+    expose:
+      - "3000"
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      DOMAIN: ${DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+  # Relais TURN : indispensable pour les appels entre certains réseaux (4G, entreprises, box strictes).
+  # En réseau « host » pour relayer les flux UDP ; les réseaux privés sont interdits comme destination.
+  turn:
+    image: coturn/coturn:4.6
+    restart: unless-stopped
+    network_mode: host
+    command:
+      - -n
+      - --listening-port=3478
+      - --fingerprint
+      - --lt-cred-mech
+      - --user=${TURN_USERNAME}:${TURN_PASSWORD}
+      - --realm=${DOMAIN}
+      - --external-ip=${PUBLIC_IP}
+      - --min-port=49160
+      - --max-port=49200
+      - --no-cli
+      - --no-tls
+      - --no-dtls
+      - --no-multicast-peers
+      - --denied-peer-ip=0.0.0.0-0.255.255.255
+      - --denied-peer-ip=10.0.0.0-10.255.255.255
+      - --denied-peer-ip=100.64.0.0-100.127.255.255
+      - --denied-peer-ip=127.0.0.0-127.255.255.255
+      - --denied-peer-ip=169.254.0.0-169.254.255.255
+      - --denied-peer-ip=172.16.0.0-172.31.255.255
+      - --denied-peer-ip=192.168.0.0-192.168.255.255
+
+  # Base PostgreSQL sur le VPS (facultative) : docker compose --profile local-db up -d --build
+  postgres:
+    image: postgres:17-alpine
+    profiles: [local-db]
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: multicord
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-}
+      POSTGRES_DB: multicord
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U multicord"]
+      interval: 5s
+      retries: 10
+
+volumes:
+  multicord-data:
+  caddy-data:
+  caddy-config:
+  postgres-data:
