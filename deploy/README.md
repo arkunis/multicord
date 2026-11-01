@@ -16,7 +16,21 @@ N’importe quel hébergeur convient (Hetzner, OVH, Scaleway, Infomaniak…). Po
 - **Ubuntu 24.04**, 2 vCPU, 2 à 4 Go de mémoire, 20 Go de disque ;
 - à partir d’environ 4 à 6 € par mois.
 
-Notez l’**adresse IP publique** du VPS et connectez-vous en SSH :
+Notez l’**adresse IP publique** du VPS.
+
+**Clé SSH (recommandé)** : elle remplace le mot de passe pour se connecter au VPS, et un robot ne peut pas la deviner. Sur votre PC, créez-la une seule fois (laissez les réponses par défaut) :
+
+```bash
+ssh-keygen -t ed25519
+```
+
+La plupart des hébergeurs proposent de coller la clé publique au moment de créer le VPS : c’est le contenu du fichier `.ssh/id_ed25519.pub` de votre dossier utilisateur. Si le VPS existe déjà, envoyez-la depuis PowerShell :
+
+```powershell
+type $env:USERPROFILE\.ssh\id_ed25519.pub | ssh root@ADRESSE_IP "mkdir -p ~/.ssh && cat >> ~/.ssh/authorized_keys"
+```
+
+Puis connectez-vous :
 
 ```bash
 ssh root@ADRESSE_IP
@@ -53,18 +67,22 @@ nano .env
 
 Le fichier `.env` et le dossier `certs/` ne sont jamais envoyés sur GitHub.
 
-## 5. Ouvrir les ports
+## 5. Sécuriser le VPS et ouvrir les ports
 
-Sur le VPS :
+Une seule commande, sur le VPS :
 
 ```bash
-ufw allow OpenSSH
-ufw allow 80,443/tcp
-ufw allow 443/udp
-ufw allow 3478
-ufw allow 49160:49200/udp
-ufw enable
+sh /opt/multicord/deploy/secure.sh
 ```
+
+Le script s’occupe de tout :
+
+- **Mises à jour de sécurité automatiques**.
+- **Pare-feu** : seuls restent ouverts SSH, le site (80 et 443) et le relais d’appels (3478, 49160 à 49200 en UDP). La base de données et le serveur Multicord ne sont jamais joignables directement de l’extérieur : tout passe par Caddy, en HTTPS.
+- **fail2ban** : il bannit pendant une heure les adresses qui ratent 5 connexions SSH.
+- **SSH par clé uniquement**, si une clé est installée (étape 1). Sans clé, il ne touche à rien, pour ne pas vous bloquer dehors.
+
+Il peut être relancé sans risque, par exemple après avoir ajouté une clé. À la fin, vérifiez dans un **autre terminal** que `ssh root@ADRESSE_IP` fonctionne toujours, avant de fermer la session en cours.
 
 Si votre hébergeur propose aussi un pare-feu dans son interface web, ouvrez-y les mêmes ports.
 
