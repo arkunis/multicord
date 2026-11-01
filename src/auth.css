@@ -4,3 +4,6 @@
 
 .auth-emblem .multicord-logo{width:30px;height:28px}.auth-wordmark>.multicord-logo{width:32px;height:28px;margin-right:10px;color:var(--green)}
 @media(max-width:650px){.auth-emblem .multicord-logo{width:25px;height:24px}}
+
+.auth-panel .remember-email,.remember-email{display:flex!important;align-items:center;gap:9px;margin:4px 0 0;font-size:12px;letter-spacing:0;color:#9fb193;cursor:pointer;text-transform:none}
+.remember-email input{width:15px!important;height:15px;margin:0!important;padding:0!important;accent-color:#b9d8b2}

@@ -6,5 +6,7 @@ function validateServerUrl(value){
  if(url.username||url.password||url.search||url.hash||url.pathname!=='/'||!(url.protocol==='https:'||(local&&url.protocol==='http:')))throw new Error('Utilisez une origine HTTPS, sans identifiants ni chemin. HTTP est réservé à localhost.');
  return url.origin;
 }
-function validateConfig(value={}){const mode=value.mode==='remote'?'remote':'local';let serverUrl='http://localhost:3000';try{serverUrl=validateServerUrl(value.serverUrl||serverUrl);}catch(error){if(mode==='remote')throw error;}return {mode,serverUrl,localPort:Number.isInteger(value.localPort)&&value.localPort>=1024&&value.localPort<=65535?value.localPort:3000,closeToTray:value.closeToTray!==false};}
+// Serveurs déjà utilisés (8 au plus), du plus récent au plus ancien.
+function validateRecent(list){if(!Array.isArray(list))return [];const out=[];for(const item of list){try{const url=validateServerUrl(item?.url);if(!out.some(x=>x.url===url))out.push({url,lastUsed:typeof item.lastUsed==='string'?item.lastUsed.slice(0,40):''});}catch{}if(out.length>=8)break;}return out;}
+function validateConfig(value={}){const mode=['remote','official'].includes(value.mode)?value.mode:'local';let serverUrl='http://localhost:3000';try{serverUrl=validateServerUrl(value.serverUrl||serverUrl);}catch(error){if(mode==='remote')throw error;}return {mode,serverUrl,localPort:Number.isInteger(value.localPort)&&value.localPort>=1024&&value.localPort<=65535?value.localPort:3000,closeToTray:value.closeToTray!==false,recent:validateRecent(value.recent)};}
 module.exports={validateServerUrl,validateConfig};

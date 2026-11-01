@@ -12,7 +12,12 @@ const dataDir=app.getPath('userData'),configPath=path.join(dataDir,'connection.j
 const localPage=name=>pathToFileURL(path.join(__dirname,name+'.html')).href;
 let main,control,picker,tray,backend,origin,quitting=false,config,pendingCapture,captureSources=[],startup=0,lastNotification=0,pendingInvite=null;
 fs.mkdirSync(dataDir,{recursive:true});
-try{config=validateConfig(JSON.parse(fs.readFileSync(configPath,'utf8').replace(/^\uFEFF/,'')));}catch{config=validateConfig();}
+// Serveur officiel proposé à ceux qui n'hébergent pas le leur (adresse vide = option indisponible).
+const OFFICIAL=(()=>{try{const o=JSON.parse(fs.readFileSync(path.join(__dirname,'official.json'),'utf8'));return o.url?{name:o.name||'Serveur officiel Multicord',url:validateServerUrl(o.url)}:null;}catch{return null;}})();
+const firstRun=!fs.existsSync(configPath);
+try{config=validateConfig(JSON.parse(fs.readFileSync(configPath,'utf8').replace(/^\uFEFF/,'')));}catch{config=validateConfig({mode:firstRun&&OFFICIAL?'official':'local'});}
+if(config.mode==='official'&&!OFFICIAL)config.mode='local';
+function remember(url){config.recent=[{url,lastUsed:new Date().toISOString()},...(config.recent||[]).filter(r=>r.url!==url)].slice(0,8);try{fs.writeFileSync(configPath,JSON.stringify(config,null,2));}catch{}}
 const isTrusted=event=>main&&!main.isDestroyed()&&event.sender===main.webContents&&event.senderFrame===main.webContents.mainFrame&&!!origin&&event.senderFrame.url.startsWith(origin+'/');
 const isControl=event=>control&&!control.isDestroyed()&&event.sender===control.webContents&&event.senderFrame.url===localPage('connection');
 const preferences={preload:path.join(__dirname,'preload.cjs'),sandbox:true,contextIsolation:true,nodeIntegration:false,webSecurity:true};
@@ -78,7 +83,7 @@ async function openPicker(resolve){
 }
 async function connect(){
  const attempt=++startup;try{
-  let result;if(config.mode==='remote'){const url=validateServerUrl(config.serverUrl);if(!await healthy(url))throw new Error('Ce serveur Multicord est inaccessible. Vérifiez son adresse et sa connexion.');result={url,mode:'remote'};}else result=await localBackend();
+  let result;if(config.mode==='remote'||(config.mode==='official'&&OFFICIAL)){const url=config.mode==='official'?OFFICIAL.url:validateServerUrl(config.serverUrl);if(!await healthy(url))throw new Error('Ce serveur Multicord est inaccessible. Vérifiez son adresse et sa connexion.');result={url,mode:config.mode};remember(url);}else result=await localBackend();
   if(attempt!==startup||quitting)return;
   origin=result.url;await main.loadURL(origin+'/');show();
   fs.writeFileSync(path.join(dataDir,'startup.json'),JSON.stringify({status:'ready',mode:result.mode,origin,electron:process.versions.electron,node:process.versions.node},null,2));
@@ -86,7 +91,7 @@ async function connect(){
 }
 function openConnection(error=''){
  if(control&&!control.isDestroyed()){control.show();return;}
- control=new BrowserWindow({width:650,height:620,minWidth:540,minHeight:530,parent:main,modal:!!main,title:'Multicord — connexion',icon,backgroundColor:'#1b2118',autoHideMenuBar:true,webPreferences:preferences});restrict(control);control.initialError=error;control.on('closed',()=>{control=null;});control.loadFile(path.join(__dirname,'connection.html'));
+ control=new BrowserWindow({width:650,height:720,minWidth:540,minHeight:560,parent:main,modal:!!main,title:'Multicord — connexion',icon,backgroundColor:'#1b2118',autoHideMenuBar:true,webPreferences:preferences});restrict(control);control.initialError=error;control.on('closed',()=>{control=null;});control.loadFile(path.join(__dirname,'connection.html'));
 }
 async function start(){
  main=new BrowserWindow({width:1380,height:900,minWidth:760,minHeight:560,show:false,title:'Multicord',icon,backgroundColor:'#1b2118',titleBarStyle:'hidden',titleBarOverlay:{color:'#141a13',symbolColor:'#b9d8b2',height:36},webPreferences:{...preferences,partition:'persist:multicord',backgroundThrottling:false}});restrict(main);setupSession(main.webContents.session);
@@ -126,10 +131,11 @@ ipcMain.handle('desktop:version',event=>{if(!isTrusted(event))return null;return
 ipcMain.handle('desktop:connection',event=>{if(isTrusted(event))openConnection();});
 ipcMain.handle('desktop:pick-screen',event=>isTrusted(event)?new Promise(resolve=>openPicker(source=>resolve(source?source.id:null))):null);
 ipcMain.handle('desktop:take-invite',event=>{if(!isTrusted(event))return null;const code=pendingInvite;pendingInvite=null;return code;});
-ipcMain.handle('desktop:configuration',event=>{if(!isControl(event))return null;return {...config,error:control.initialError||''};});
+ipcMain.handle('desktop:configuration',event=>{if(!isControl(event))return null;return {...config,official:OFFICIAL,error:control.initialError||''};});
+ipcMain.handle('desktop:forget-server',(event,url)=>{if(!isControl(event))return null;config.recent=(config.recent||[]).filter(r=>r.url!==url);fs.writeFileSync(configPath,JSON.stringify(config,null,2));return config.recent;});
 ipcMain.handle('desktop:save-configuration',async(event,value)=>{
  if(!isControl(event))return {error:'Accès refusé.'};
-  try{const next=validateConfig(value);if(next.mode==='remote'&&!await healthy(next.serverUrl))throw new Error('Le serveur est inaccessible ou ne correspond pas à Multicord.');config=next;fs.writeFileSync(configPath,JSON.stringify(config,null,2));origin=null;await stopBackend();control.close();await main.loadFile(path.join(__dirname,'loading.html'));connect();return {ok:true};}catch(error){return {error:error.message};}
+  try{const next=validateConfig({...value,recent:config.recent});if(next.mode==='official'&&!OFFICIAL)throw new Error('Le serveur officiel n’est pas encore disponible.');if(next.mode==='official'&&!await healthy(OFFICIAL.url))throw new Error('Le serveur officiel est momentanément inaccessible.');if(next.mode==='remote'&&!await healthy(next.serverUrl))throw new Error('Le serveur est inaccessible ou ne correspond pas à Multicord.');config=next;fs.writeFileSync(configPath,JSON.stringify(config,null,2));origin=null;await stopBackend();control.close();await main.loadFile(path.join(__dirname,'loading.html'));connect();return {ok:true};}catch(error){return {error:error.message};}
 });
 ipcMain.handle('desktop:notify',(event,value)=>{
  if(!isTrusted(event)||!value||typeof value.title!=='string'||typeof value.body!=='string'||main.isFocused()||Date.now()-lastNotification<2000||!Notification.isSupported())return false;

@@ -5,7 +5,7 @@ const root=process.cwd(),stage=path.resolve(root,'desktop-stage');
 if(path.dirname(stage)!==root||path.basename(stage)!=='desktop-stage')throw new Error('Dossier de compilation invalide.');
 console.log('Préparation dans '+stage);await rm(stage,{recursive:true,force:true});await mkdir(path.join(stage,'app'),{recursive:true});await mkdir(path.join(stage,'backend'),{recursive:true});
 const pkg=JSON.parse(await readFile('package.json','utf8'));
-for(const file of ['main.cjs','preload.cjs','config.cjs','loading.html','connection.html','connection.js','capture.html','capture.js','ui.css','assets'])await cp(path.join('desktop',file),path.join(stage,'app',file),{recursive:true});
+for(const file of ['main.cjs','preload.cjs','config.cjs','loading.html','connection.html','connection.js','capture.html','capture.js','ui.css','assets','official.json'])await cp(path.join('desktop',file),path.join(stage,'app',file),{recursive:true});
 await mkdir(path.join(stage,'app','node_modules'),{recursive:true});
 await writeFile(path.join(stage,'app','package.json'),JSON.stringify({name:'multicord',productName:'Multicord',version:pkg.version,description:'Vos communautés, vos conversations et vos appels.',author:'Multicord',main:'main.cjs',private:true,dependencies:{'electron-updater':pkg.devDependencies['electron-updater']}},null,2));
 for(const folder of ['server','shared','dist'])await cp(folder,path.join(stage,'backend',folder),{recursive:true});

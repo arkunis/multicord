@@ -3,7 +3,10 @@ import React, { useEffect, useState } from 'react';
 import { ArrowLeft, ArrowRight, Check, Eye, EyeOff, KeyRound, LoaderCircle, Mail, ShieldCheck } from 'lucide-react';
 import { api, post } from './api';
 
+const EMAIL_KEY='mc-remember-email';
+const savedEmail=()=>{try{return localStorage.getItem(EMAIL_KEY)||'';}catch{return '';}};
 export default function AuthGate({children}) {
+  const [rememberEmail,setRememberEmail]=useState(true);
   const [resetToken,setResetToken]=useState(()=>new URLSearchParams(location.hash.slice(1)).get('reset'));
   const [mode,setMode]=useState(resetToken?'reset':'login'),[user,setUser]=useState(null),[loading,setLoading]=useState(true);
   const [busy,setBusy]=useState(false),[error,setError]=useState(''),[success,setSuccess]=useState(''),[show,setShow]=useState(false),[delivery,setDelivery]=useState('');
@@ -31,7 +34,7 @@ export default function AuthGate({children}) {
       } else if(mode==='reset') {
         const result=await post('/auth/reset-password',{token:resetToken,password:values.password});
         setUser(null);setMode('login');setSuccess(result.message);
-      } else { const result=await post(`/auth/${mode}`,values);setUser(result); }
+      } else { const result=await post(`/auth/${mode}`,values);try{if(rememberEmail)localStorage.setItem(EMAIL_KEY,values.email);else localStorage.removeItem(EMAIL_KEY);}catch{}setUser(result); }
     }catch(e){setError(e.message);}finally{setBusy(false);}
   }
   if(loading)return <div className="auth-loading"><LoaderCircle className="spin"/> Ouverture de votre univers…</div>;
@@ -47,9 +50,10 @@ export default function AuthGate({children}) {
     {delivery==='local'&&<div className="local-mail-note"><Mail size={18}/><span><strong>Mode e-mail local</strong>Si le compte existe, l’e-mail est enregistré dans le dossier privé <code>data/mail</code> du projet. Ouvrez le fichier le plus récent et utilisez le lien qu’il contient. Aucun e-mail n’est envoyé sur internet.</span></div>}
     <form onSubmit={submit} key={mode}>
       {mode==='register'&&<><label>VOTRE PSEUDO<input name="username" autoComplete="nickname" placeholder="Comment vous appelle-t-on ?" minLength={1} maxLength={32} required autoFocus/></label><p className="signup-handle-note">Votre pseudo peut être partagé. Un code unique, comme #E12K, sera ajouté automatiquement à votre identifiant.</p></>}
-      {mode!=='reset'&&<label>ADRESSE E-MAIL<input name="email" type="email" autoComplete="email" placeholder="vous@exemple.fr" maxLength={254} required autoFocus={mode!=='register'}/></label>}
-      {mode!=='forgot'&&<label>{mode==='reset'?'NOUVEAU MOT DE PASSE':'MOT DE PASSE'}<div className="password-input"><input name="password" type={show?'text':'password'} autoComplete={mode==='login'?'current-password':'new-password'} placeholder={mode==='login'?'Votre mot de passe':'Au moins 10 caractères'} minLength={mode==='login'?1:10} maxLength={72} required autoFocus={mode==='reset'}/><button type="button" title={show?'Masquer le mot de passe':'Afficher le mot de passe'} onClick={()=>setShow(!show)}>{show?<EyeOff size={17}/>:<Eye size={17}/>}</button></div></label>}
+      {mode!=='reset'&&<label>ADRESSE E-MAIL<input name="email" type="email" autoComplete="email" placeholder="vous@exemple.fr" maxLength={254} required defaultValue={mode==='login'||mode==='forgot'?savedEmail():''} autoFocus={mode!=='register'&&!(mode==='login'&&savedEmail())}/></label>}
+      {mode!=='forgot'&&<label>{mode==='reset'?'NOUVEAU MOT DE PASSE':'MOT DE PASSE'}<div className="password-input"><input name="password" type={show?'text':'password'} autoComplete={mode==='login'?'current-password':'new-password'} placeholder={mode==='login'?'Votre mot de passe':'Au moins 10 caractères'} minLength={mode==='login'?1:10} maxLength={72} required autoFocus={mode==='reset'||(mode==='login'&&!!savedEmail())}/><button type="button" title={show?'Masquer le mot de passe':'Afficher le mot de passe'} onClick={()=>setShow(!show)}>{show?<EyeOff size={17}/>:<Eye size={17}/>}</button></div></label>}
       {['register','reset'].includes(mode)&&<label>CONFIRMER LE MOT DE PASSE<input name="confirm" type={show?'text':'password'} autoComplete="new-password" placeholder="Une deuxième fois, pour être sûr" minLength={10} maxLength={72} required/></label>}
+      {(mode==='login'||mode==='register')&&<label className="remember-email"><input type="checkbox" checked={rememberEmail} onChange={e=>setRememberEmail(e.target.checked)}/> Se souvenir de mon e-mail sur cet appareil</label>}
       {mode==='login'&&<button className="forgot-link" type="button" onClick={()=>changeMode('forgot')}>Mot de passe oublié ?</button>}
       <button className="primary auth-submit" disabled={busy}>{busy?<><LoaderCircle className="spin" size={17}/> Un instant…</>:<>{mode==='login'?'Entrer dans mon univers':mode==='register'?'Créer mon compte':mode==='forgot'?'Recevoir un lien':'Enregistrer mon mot de passe'}<ArrowRight size={17}/></>}</button>
     </form>

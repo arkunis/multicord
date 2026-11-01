@@ -4,6 +4,7 @@ contextBridge.exposeInMainWorld('multicordDesktop',Object.freeze({
  connection:()=>ipcRenderer.invoke('desktop:connection'),
  configuration:()=>ipcRenderer.invoke('desktop:configuration'),
  saveConfiguration:value=>ipcRenderer.invoke('desktop:save-configuration',value),
+ forgetServer:url=>ipcRenderer.invoke('desktop:forget-server',url),
  notify:value=>ipcRenderer.invoke('desktop:notify',value),
  sources:()=>ipcRenderer.invoke('desktop:sources'),
  chooseSource:id=>ipcRenderer.invoke('desktop:choose-source',id),
