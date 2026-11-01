@@ -76,7 +76,7 @@ Le créateur héberge les médias, mais un serveur central reste nécessaire pou
 
 - `localhost` autorise l’accès aux périphériques pendant le développement. Sur une adresse LAN ou un domaine, fournir **HTTPS** pour le micro, la caméra et le partage d’écran.
 - Les liens d’invitation utilisent `PUBLIC_URL` (sinon l’origine courante). Un lien `localhost` ne fonctionne que sur la machine de celui qui l’ouvre : définir `PUBLIC_URL` avec le domaine HTTPS public pour inviter des personnes à distance.
-- STUN Google est configuré. Certains NAT / pare-feu imposent un relais **TURN**. Configurer `TURN_URL`, `TURN_USERNAME`, `TURN_CREDENTIAL` dans `.env`. Un serveur coturn auto-hébergé n’a pas de coût de licence, mais sa bande passante et son hébergement peuvent coûter de l’argent. Les identifiants TURN transmis aux clients doivent être temporaires en production ; la version 1.0 prend des identifiants statiques.
+- Le STUN de Google est utilisé par défaut ; `STUN_URLS` permet d’en choisir un autre (le kit VPS utilise son propre relais). Certains NAT / pare-feu imposent un relais **TURN**. Configurer `TURN_URL`, `TURN_USERNAME`, `TURN_CREDENTIAL` dans `.env`. Un serveur coturn auto-hébergé n’a pas de coût de licence, mais sa bande passante et son hébergement peuvent coûter de l’argent. Les identifiants TURN transmis aux clients doivent être temporaires en production ; la version 1.0 prend des identifiants statiques.
 - Le débit montant et les ressources de l’hôte limitent le nombre de participants. Le relais s’effectue dans le navigateur de l’hôte ; l’hôte a donc accès aux médias des invités. Ne pas revendiquer un chiffrement de bout en bout excluant l’hôte.
 - Les appels ne sont pas enregistrés. Si l’hôte quitte l’appel ou perd la connexion, les participants se reconnectent automatiquement et l’un d’eux devient le nouvel hôte.
 
@@ -137,6 +137,8 @@ Pour publier une mise à jour : changer `version` dans `package.json`, puis pous
 ## Licence
 
 Multicord est un logiciel libre distribué sous la licence **GNU Affero General Public License v3.0 ou ultérieure** (voir [LICENSE](LICENSE)). Toute personne qui héberge une version modifiée de Multicord pour d’autres utilisateurs doit leur donner accès au code source de cette version.
+
+Le nom et le logo Multicord ne sont pas couverts par cette licence : une version modifiée doit porter un autre nom. Voir [TRADEMARKS.md](TRADEMARKS.md).
 
 ## Politique de signature de code
 
