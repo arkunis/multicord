@@ -71,7 +71,7 @@ function setupSession(session){
   openPicker(source=>callback(source?{video:source}:{}));
  });
  session.webRequest.onHeadersReceived((details,callback)=>{
-  if(origin&&details.url.startsWith(origin+'/'))callback({responseHeaders:{...details.responseHeaders,'Content-Security-Policy':[`default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' blob: data:; media-src 'self' blob:; connect-src 'self' ${origin.replace(/^http/,'ws')}; object-src 'none'; base-uri 'self'; form-action 'self'; frame-src 'none'`]}});else callback({});
+  if(origin&&details.url.startsWith(origin+'/'))callback({responseHeaders:{...details.responseHeaders,'Content-Security-Policy':[`default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' blob: data:; media-src 'self' blob:; connect-src 'self' ${origin.replace(/^http/,'ws')}; object-src 'none'; base-uri 'self'; form-action 'self'; frame-src 'none'`]}});else callback({});
  });
 }
 async function openPicker(resolve){

@@ -12,9 +12,7 @@
 <meta property="og:image" content="https://arkunis.github.io/multicord/assets/og.png">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="fonts/fonts.css">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -115,7 +113,7 @@
     <div class="section-head"><span class="eyebrow">Questions</span><h2 id="faq-title">Bon à savoir</h2></div>
     <details><summary>Multicord est-il vraiment gratuit ?</summary><p>Oui. Multicord est un logiciel libre sous licence AGPL-3.0 : pas d’abonnement, pas de publicité, pas de fonctions payantes.</p></details>
     <details><summary>Comment se passent les mises à jour ?</summary><p>Avec l’installateur, Multicord vérifie régulièrement s’il existe une nouvelle version, la télécharge en arrière-plan et vous propose de redémarrer. Si vous fermez simplement l’application, la mise à jour s’installe au prochain lancement. La version portable vous prévient et vous renvoie vers cette page.</p></details>
-    <details><summary>Où sont stockés mes messages ?</summary><p>Sur le serveur Multicord auquel vous vous connectez : celui de votre groupe ou le vôtre. L’application ne contacte aucun autre service, et la réduction du bruit fonctionne entièrement sur votre ordinateur.</p></details>
+    <details><summary>Où sont stockés mes messages ?</summary><p>Sur le serveur Multicord auquel vous vous connectez : celui de votre groupe ou le vôtre. Les messages ne passent par aucun autre service, et la réduction du bruit fonctionne entièrement sur votre ordinateur. Seules exceptions techniques : la vérification des mises à jour sur GitHub et, pour établir les appels, un serveur STUN qui découvre votre adresse publique (celui de Google par défaut, ou celui du serveur hébergé).</p></details>
     <details><summary>Puis-je héberger mon propre serveur ?</summary><p>Oui. Le serveur fonctionne avec SQLite ou PostgreSQL. Le <a href="https://github.com/arkunis/multicord#readme">guide sur GitHub</a> explique comment le lancer et l’ouvrir sur internet en HTTPS.</p></details>
     <details><summary>Et sur Mac, Linux ou téléphone ?</summary><p>L’application de bureau est disponible pour Windows. Sur les autres systèmes, Multicord s’utilise dans le navigateur, à l’adresse du serveur de votre groupe.</p></details>
   </section>

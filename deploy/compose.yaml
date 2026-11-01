@@ -11,6 +11,7 @@ services:
       APP_ORIGIN: https://${DOMAIN}
       PUBLIC_URL: https://${DOMAIN}
       TRUST_PROXY: "1"
+      STUN_URLS: stun:${DOMAIN}:3478
       TURN_URL: turn:${DOMAIN}:3478
       TURN_USERNAME: ${TURN_USERNAME}
       TURN_CREDENTIAL: ${TURN_PASSWORD}
