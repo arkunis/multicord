@@ -54,6 +54,12 @@ export async function openDatabase(url = process.env.DATABASE_URL, path = proces
     const added=await tx.one('INSERT INTO app_migrations (id,applied_at) VALUES ($1,$2) ON CONFLICT DO NOTHING RETURNING id',['profile-avatar-v1',new Date().toISOString()]);
     if(added)await tx.run('ALTER TABLE users ADD COLUMN avatar TEXT');
   });
+  // Modération : comptes suspendus, comptes supprimés (anonymisés), acceptation des conditions.
+  await db.transaction(async tx=>{
+    const added=await tx.one('INSERT INTO app_migrations (id,applied_at) VALUES ($1,$2) ON CONFLICT DO NOTHING RETURNING id',['moderation-v1',new Date().toISOString()]);
+    if(!added)return;
+    for(const sql of ['ALTER TABLE users ADD COLUMN suspended_at TEXT','ALTER TABLE users ADD COLUMN suspended_reason TEXT','ALTER TABLE users ADD COLUMN deleted_at TEXT','ALTER TABLE users ADD COLUMN terms_accepted_at TEXT'])await tx.run(sql);
+  });
   // Messages modifiés, réponses et transferts.
   await db.transaction(async tx=>{
     const added=await tx.one('INSERT INTO app_migrations (id,applied_at) VALUES ($1,$2) ON CONFLICT DO NOTHING RETURNING id',['message-actions-v1',new Date().toISOString()]);
@@ -117,6 +123,9 @@ const schema = [
   ,`CREATE TABLE IF NOT EXISTS category_roles (category_id TEXT NOT NULL REFERENCES channel_categories(id) ON DELETE CASCADE,role_id TEXT NOT NULL REFERENCES server_roles(id) ON DELETE CASCADE,PRIMARY KEY(category_id,role_id))`
   ,`CREATE TABLE IF NOT EXISTS message_reactions (message_id TEXT NOT NULL REFERENCES messages(id) ON DELETE CASCADE,user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,emoji TEXT NOT NULL,created_at TEXT NOT NULL,PRIMARY KEY(message_id,user_id,emoji))`
   ,`CREATE INDEX IF NOT EXISTS message_reactions_message ON message_reactions(message_id,created_at)`
+  ,`CREATE TABLE IF NOT EXISTS reports (id TEXT PRIMARY KEY,reporter_id TEXT REFERENCES users(id) ON DELETE SET NULL,kind TEXT NOT NULL CHECK(kind IN ('message','direct_message','user')),target_id TEXT NOT NULL,target_user_id TEXT,server_id TEXT,reason TEXT NOT NULL,details TEXT NOT NULL DEFAULT '',snapshot TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'open',decision TEXT,note TEXT,handled_by TEXT,handled_at TEXT,created_at TEXT NOT NULL)`
+  ,`CREATE INDEX IF NOT EXISTS reports_status ON reports(status,created_at)`
+  ,`CREATE INDEX IF NOT EXISTS reports_server ON reports(server_id,status)`
   ,`CREATE TABLE IF NOT EXISTS channel_roles (channel_id TEXT NOT NULL REFERENCES channels(id) ON DELETE CASCADE,role_id TEXT NOT NULL REFERENCES server_roles(id) ON DELETE CASCADE,PRIMARY KEY(channel_id,role_id))`
   ,`CREATE TABLE IF NOT EXISTS server_member_roles (server_id TEXT NOT NULL,user_id TEXT NOT NULL,role_id TEXT NOT NULL,PRIMARY KEY(server_id,user_id,role_id),FOREIGN KEY(server_id,user_id) REFERENCES memberships(server_id,user_id) ON DELETE CASCADE,FOREIGN KEY(server_id,role_id) REFERENCES server_roles(server_id,id) ON DELETE CASCADE)`
 ];

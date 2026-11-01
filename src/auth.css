@@ -7,3 +7,6 @@
 
 .auth-panel .remember-email,.remember-email{display:flex!important;align-items:center;gap:9px;margin:4px 0 0;font-size:12px;letter-spacing:0;color:#9fb193;cursor:pointer;text-transform:none}
 .remember-email input{width:15px!important;height:15px;margin:0!important;padding:0!important;accent-color:#b9d8b2}
+.auth-legal{margin:10px 0 0;font-size:11px;color:#7f8b74;text-align:center}.auth-legal a{color:#9fb193}
+.accept-terms span{line-height:1.5}.accept-terms a{color:#b9d8b2}
+.accept-terms span,.accept-terms a{letter-spacing:0!important;text-transform:none!important;font-size:12px}

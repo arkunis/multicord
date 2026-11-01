@@ -6,7 +6,8 @@ import { api, post } from './api';
 const EMAIL_KEY='mc-remember-email';
 const savedEmail=()=>{try{return localStorage.getItem(EMAIL_KEY)||'';}catch{return '';}};
 export default function AuthGate({children}) {
-  const [rememberEmail,setRememberEmail]=useState(true);
+  const [rememberEmail,setRememberEmail]=useState(true),[instance,setInstance]=useState(null);
+  useEffect(()=>{fetch('/api/instance').then(r=>r.ok?r.json():null).then(setInstance).catch(()=>{});},[]);
   const [resetToken,setResetToken]=useState(()=>new URLSearchParams(location.hash.slice(1)).get('reset'));
   const [mode,setMode]=useState(resetToken?'reset':'login'),[user,setUser]=useState(null),[loading,setLoading]=useState(true);
   const [busy,setBusy]=useState(false),[error,setError]=useState(''),[success,setSuccess]=useState(''),[show,setShow]=useState(false),[delivery,setDelivery]=useState('');
@@ -34,7 +35,7 @@ export default function AuthGate({children}) {
       } else if(mode==='reset') {
         const result=await post('/auth/reset-password',{token:resetToken,password:values.password});
         setUser(null);setMode('login');setSuccess(result.message);
-      } else { const result=await post(`/auth/${mode}`,values);try{if(rememberEmail)localStorage.setItem(EMAIL_KEY,values.email);else localStorage.removeItem(EMAIL_KEY);}catch{}setUser(result); }
+      } else { const result=await post(`/auth/${mode}`,mode==='register'?{...values,acceptTerms:values.acceptTerms==='on'}:values);try{if(rememberEmail)localStorage.setItem(EMAIL_KEY,values.email);else localStorage.removeItem(EMAIL_KEY);}catch{}setUser(result); }
     }catch(e){setError(e.message);}finally{setBusy(false);}
   }
   if(loading)return <div className="auth-loading"><LoaderCircle className="spin"/> Ouverture de votre univers…</div>;
@@ -53,6 +54,7 @@ export default function AuthGate({children}) {
       {mode!=='reset'&&<label>ADRESSE E-MAIL<input name="email" type="email" autoComplete="email" placeholder="vous@exemple.fr" maxLength={254} required defaultValue={mode==='login'||mode==='forgot'?savedEmail():''} autoFocus={mode!=='register'&&!(mode==='login'&&savedEmail())}/></label>}
       {mode!=='forgot'&&<label>{mode==='reset'?'NOUVEAU MOT DE PASSE':'MOT DE PASSE'}<div className="password-input"><input name="password" type={show?'text':'password'} autoComplete={mode==='login'?'current-password':'new-password'} placeholder={mode==='login'?'Votre mot de passe':'Au moins 10 caractères'} minLength={mode==='login'?1:10} maxLength={72} required autoFocus={mode==='reset'||(mode==='login'&&!!savedEmail())}/><button type="button" title={show?'Masquer le mot de passe':'Afficher le mot de passe'} onClick={()=>setShow(!show)}>{show?<EyeOff size={17}/>:<Eye size={17}/>}</button></div></label>}
       {['register','reset'].includes(mode)&&<label>CONFIRMER LE MOT DE PASSE<input name="confirm" type={show?'text':'password'} autoComplete="new-password" placeholder="Une deuxième fois, pour être sûr" minLength={10} maxLength={72} required/></label>}
+      {mode==='register'&&<label className="remember-email accept-terms"><input type="checkbox" name="acceptTerms" required={!!instance?.requireTerms}/> <span>J’accepte les <a href="/legal/conditions" target="_blank" rel="noreferrer">conditions d’utilisation</a> et la <a href="/legal/confidentialite" target="_blank" rel="noreferrer">politique de confidentialité</a>.</span></label>}
       {(mode==='login'||mode==='register')&&<label className="remember-email"><input type="checkbox" checked={rememberEmail} onChange={e=>setRememberEmail(e.target.checked)}/> Se souvenir de mon e-mail sur cet appareil</label>}
       {mode==='login'&&<button className="forgot-link" type="button" onClick={()=>changeMode('forgot')}>Mot de passe oublié ?</button>}
       <button className="primary auth-submit" disabled={busy}>{busy?<><LoaderCircle className="spin" size={17}/> Un instant…</>:<>{mode==='login'?'Entrer dans mon univers':mode==='register'?'Créer mon compte':mode==='forgot'?'Recevoir un lien':'Enregistrer mon mot de passe'}<ArrowRight size={17}/></>}</button>
@@ -60,5 +62,6 @@ export default function AuthGate({children}) {
     {['forgot','reset'].includes(mode)&&<button className="auth-back" onClick={()=>changeMode('login')}><ArrowLeft size={15}/> Revenir à la connexion</button>}
     {mode==='reset'&&<button className="text-link" onClick={()=>changeMode('forgot')}>Mon lien a expiré, en demander un autre</button>}
     <p className="auth-footnote"><ShieldCheck size={14}/> Votre compte. Vos communautés. Votre espace.</p>
+    <p className="auth-legal"><a href="/legal/conditions" target="_blank" rel="noreferrer">Conditions</a> · <a href="/legal/confidentialite" target="_blank" rel="noreferrer">Confidentialité</a> · <a href="/legal/mentions" target="_blank" rel="noreferrer">Mentions légales</a></p>
   </div><span className="auth-panel-footer">MULTICORD · UN ENDROIT POUR SE RETROUVER</span></section></main>;
 }

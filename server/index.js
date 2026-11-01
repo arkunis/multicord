@@ -13,6 +13,8 @@ import {DEFAULT_PERMISSIONS} from '../shared/permissions.js';
 import {installServerManagement} from './server-management.js';
 import {createPresence} from './presence.js';
 import {installAttachments,claimAttachments,withAttachments} from './attachments.js';
+import {installModeration,isInstanceAdmin} from './moderation.js';
+import {installLegal,instanceInfo} from './legal.js';
 import { createSettingsStore } from './settings-store.js';
 
 const db = await openDatabase();
@@ -45,16 +47,19 @@ function rate(key, max=40) {
 setInterval(()=>{ for(const [k,v] of limits) if(v.until<Date.now()) limits.delete(k); },60000).unref();
 const {authenticate,publicUser,tokenFrom,tokenHash}=installAuth(app,{db,io,rate});
 app.get('/api/health',(_req,res)=>res.json({service:'multicord',api:1}));
+installLegal(app);
 app.use('/api',async(req,res,next)=>{
   res.setHeader('Cache-Control','no-store');
   const user=await authenticate(tokenFrom(req));
   if(!user?.email)return res.status(401).json({error:'Connectez-vous pour accéder à Multicord.'});
+  if(user.suspended_at)return res.status(403).json({error:'Votre compte est suspendu.',suspended:true});
   req.user=user;next();
 });
 const settings=createSettingsStore(db);
 const presenceOf=createPresence({io,online,settings});
 const social=installSocial(app,{db,io,online,rate,settings,presenceOf});
 installAttachments(app,{db,rate,channelFor:(...a)=>channelFor(...a)});
+installModeration(app,{db,io,rate,channelFor:(...a)=>channelFor(...a),emitChannel:(...a)=>emitChannel(...a)});
 // Liste des membres visibles en ligne et leur présence (en ligne, absent, ne pas déranger).
 async function presenceMap(userIds){const statuses={};for(const id of userIds){const p=await presenceOf(id);if(p)statuses[id]=p;}return statuses;}
 app.get('/api/account/settings',async(req,res)=>res.json(await settings.get(req.user.id)));
@@ -159,7 +164,7 @@ async function visibleCategories(user,serverId){
   const categories=await db.all('SELECT * FROM channel_categories WHERE server_id=$1 ORDER BY position,name',[serverId]),access=await db.all('SELECT category_roles.* FROM category_roles JOIN channel_categories c ON c.id=category_roles.category_id WHERE c.server_id=$1',[serverId]);
   return categories.map(c=>({...c,roles:access.filter(a=>a.category_id===c.id).map(a=>a.role_id)})).filter(c=>!c.roles.length||p?.manageChannels||c.roles.some(r=>mine.has(r)));
 }
-app.get('/api/bootstrap',async(req,res)=>res.json({user:publicUser(req.user),servers:await db.all('SELECT servers.*,server_profiles.icon,server_profiles.banner FROM servers LEFT JOIN server_profiles ON server_profiles.server_id=servers.id JOIN memberships ON servers.id=memberships.server_id WHERE memberships.user_id=$1 ORDER BY servers.created_at',[req.user.id]),publicUrl:process.env.PUBLIC_URL||null,rtc:{iceServers:[{urls:'stun:stun.l.google.com:19302'},...(process.env.TURN_URL?[{urls:process.env.TURN_URL,username:process.env.TURN_USERNAME,credential:process.env.TURN_CREDENTIAL}]:[])]}}));
+app.get('/api/bootstrap',async(req,res)=>res.json({user:publicUser(req.user),instanceAdmin:isInstanceAdmin(req.user),instance:instanceInfo(),servers:await db.all('SELECT servers.*,server_profiles.icon,server_profiles.banner FROM servers LEFT JOIN server_profiles ON server_profiles.server_id=servers.id JOIN memberships ON servers.id=memberships.server_id WHERE memberships.user_id=$1 ORDER BY servers.created_at',[req.user.id]),publicUrl:process.env.PUBLIC_URL||null,rtc:{iceServers:[{urls:'stun:stun.l.google.com:19302'},...(process.env.TURN_URL?[{urls:process.env.TURN_URL,username:process.env.TURN_USERNAME,credential:process.env.TURN_CREDENTIAL}]:[])]}}));
 async function publishProfile(updated){
   for(const socket of io.sockets.sockets.values())if(socket.data.user.id===updated.id)socket.data.user=updated;
   const targets=[`user:${updated.id}`];
@@ -299,7 +304,7 @@ async function leaveVoice(socket) {
   } else { room.members.delete(socket.id); io.to(room.host).emit('voice:peer-left',{peer:socket.id}); }
   emitRooms(room.serverId);
 }
-io.use(async(socket,next)=>{try{const user=await authenticate(tokenFrom(socket.request));if(!user?.email) return next(new Error('Session expirée'));socket.data.user=publicUser(user);socket.data.sessionHash=tokenHash(tokenFrom(socket.request));next();}catch{next(new Error('Connexion impossible'));}});
+io.use(async(socket,next)=>{try{const user=await authenticate(tokenFrom(socket.request));if(!user?.email||user.suspended_at) return next(new Error('Session expirée'));socket.data.user=publicUser(user);socket.data.sessionHash=tokenHash(tokenFrom(socket.request));next();}catch{next(new Error('Connexion impossible'));}});
 io.on('connection',async socket=>{
   const user=socket.data.user;
   socket.join(`user:${user.id}`);

@@ -23,3 +23,7 @@ html[data-theme=midnight] .topbar,html[data-theme=midnight] .settings-card{backg
 .theme-preview em{position:absolute;left:42%;top:29px;width:30%;height:14px;border-radius:5px}
 .theme-picker strong{display:flex;align-items:center;gap:6px;font-size:12px;margin-top:3px}
 .theme-picker small{font-size:10px;color:#7f8b74;line-height:1.4}
+.legal-links{margin-top:14px}.legal-links a{color:#b9d8b2}
+.danger-zone{border-color:#e7a99033!important}.danger-zone h2{color:#f0b9a2}
+.danger-zone .danger{color:#f0b9a2}
+.danger-zone form label{display:block;margin-top:10px}

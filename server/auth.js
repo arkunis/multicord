@@ -40,6 +40,8 @@ export function installAuth(app, { db, io, rate }) {
     if(!validEmail(email))return res.status(400).json({error:'Indiquez un e-mail valide.'});
     if(!validPassword(password))return res.status(400).json({error:passwordError});
     if(typeof username!=='string'||!username.trim()||username.trim().length>32||username.includes('#'))return res.status(400).json({error:'Choisissez un pseudo de 1 à 32 caractères, sans #.'});
+    // Sur une instance publique (REQUIRE_TERMS=1), l'acceptation des conditions est obligatoire et datée.
+    if(process.env.REQUIRE_TERMS==='1'&&req.body.acceptTerms!==true)return res.status(400).json({error:'Acceptez les conditions d’utilisation et la politique de confidentialité pour créer un compte.'});
     const normalized=email.trim().toLowerCase();
     if(await db.one('SELECT id FROM users WHERE email=$1',[normalized]))return res.status(409).json({error:'Un compte utilise déjà cette adresse e-mail.'});
     const guest=await authenticate(tokenFrom(req));
@@ -48,6 +50,7 @@ export function installAuth(app, { db, io, rate }) {
     try{await db.run('INSERT INTO users (id,username,email,password,color,created_at) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT(id) DO UPDATE SET username=$2,email=$3,password=$4',[user.id,user.username,normalized,encrypted,user.color,new Date().toISOString()]);}
     catch(error){if(error.code==='23505'||error.code?.startsWith('SQLITE_CONSTRAINT'))return res.status(409).json({error:'Un compte utilise déjà cette adresse e-mail.'});throw error;}
     if(guest){await db.run('DELETE FROM sessions WHERE user_id=$1',[guest.id]);disconnect(guest.id);}
+    if(req.body.acceptTerms===true)await db.run('UPDATE users SET terms_accepted_at=$1 WHERE id=$2',[new Date().toISOString(),user.id]);
     res.json(await session(res,user,undefined,req));
   });
   app.post('/api/auth/login',async(req,res)=>{
@@ -58,6 +61,7 @@ export function installAuth(app, { db, io, rate }) {
     const fallback='$2b$12$C6UzMDM.H6dfI/f/IKcEe.5csYm8TQQhHWAKCbFHBNoU04gyE5N1G';
     const valid=await bcrypt.compare(password,user?.password||fallback);
     if(!user||!valid)return res.status(401).json({error:'E-mail ou mot de passe incorrect.'});
+    if(user.suspended_at)return res.status(403).json({error:`Ce compte est suspendu${user.suspended_reason?` (${user.suspended_reason})`:''}.${process.env.INSTANCE_CONTACT?` Pour contester : ${process.env.INSTANCE_CONTACT}.`:''}`});
     const result=await session(res,user,user.password,req);
     if(!result)return res.status(401).json({error:'Le mot de passe a été modifié. Reconnectez-vous.'});
     res.json(result);

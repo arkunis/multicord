@@ -92,6 +92,18 @@ Ouvrez ensuite `https://VOTRE_ADRESSE` dans un navigateur : la page de connexion
 
 Sur un autre ordinateur ou un téléphone, `https://VOTRE_ADRESSE` s’ouvre aussi directement dans le navigateur.
 
+## Ouvrir le serveur au public
+
+Si le serveur est accessible à tous (et pas seulement à vos amis), vous devenez **hébergeur** au sens de la loi. Multicord fournit ce qu'il faut ; il reste à le remplir :
+
+1. **Pages légales** : renseignez dans `.env` les variables `INSTANCE_OPERATOR`, `INSTANCE_PUBLISHER`, `INSTANCE_CONTACT`, `INSTANCE_HOSTING` et `INSTANCE_DATA_LOCATION`. Elles alimentent `/legal/conditions`, `/legal/confidentialite` et `/legal/mentions`, liées depuis l'écran de connexion et les paramètres. Tant qu'une information manque, la page l'affiche en surbrillance « à compléter ».
+   Pour un particulier, la loi permet de ne pas publier son nom et son adresse, à condition de les avoir communiqués à l'hébergeur du VPS ; indiquez alors ses coordonnées dans `INSTANCE_HOSTING` et un e-mail de contact.
+2. **Acceptation des conditions** : `REQUIRE_TERMS=1` (déjà dans le modèle) rend la case obligatoire à l'inscription et enregistre la date d'acceptation.
+3. **Modération** : mettez l'e-mail de votre compte dans `INSTANCE_ADMINS`. Un bouton bouclier apparaît alors en bas à gauche de l'application : il ouvre tous les signalements (salons et messages privés), avec suppression du contenu, suspension ou réactivation des comptes. Les modérateurs de chaque serveur traitent aussi les signalements de leur serveur (Paramètres du serveur › Signalements).
+4. **Relecture** : les textes fournis sont des modèles. Faites-les relire et adaptez-les à votre situation, en particulier si vous êtes une association ou une entreprise.
+
+Les utilisateurs peuvent télécharger leurs données et supprimer leur compte depuis Paramètres › Données et confidentialité.
+
 ## Mettre à jour le serveur
 
 ```bash

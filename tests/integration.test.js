@@ -15,8 +15,8 @@ import { openDatabase, postgresOptions } from '../server/db.js';
 describe('Multicord — intégration réelle HTTP / Socket.IO / '+(process.env.TEST_POSTGRES==='1'?'PostgreSQL':'SQLite'), {timeout:60000},()=>{
   let child, directory, base, alice, bob, privateServer, textChannel, voiceChannel, testPg, testSchema, charlie, dm;
   const sockets=[];
-  async function request(path,body,cookie,method=body?'POST':'GET') {
-    const r=await fetch(base+'/api'+path,{method,headers:{'Content-Type':'application/json',...(cookie?{Cookie:cookie}:{})},...(body?{body:JSON.stringify(body)}:{})});
+  async function request(path,body,cookie,method=body?'POST':'GET',extra={}) {
+    const r=await fetch(base+'/api'+path,{method,headers:{'Content-Type':'application/json',...(cookie?{Cookie:cookie}:{}),...extra},...(body?{body:JSON.stringify(body)}:{})});
     return {status:r.status,data:await r.json(),cookie:r.headers.get('set-cookie')?.split(';')[0]};
   }
   async function connect(user) {
@@ -35,7 +35,7 @@ describe('Multicord — intégration réelle HTTP / Socket.IO / '+(process.env.T
       await testPg.query('CREATE SCHEMA '+testSchema);
       const url=new URL(process.env.DATABASE_URL);url.searchParams.set('options','-c search_path='+testSchema);testDatabase=url.toString();
     }
-    child=spawn(process.execPath,['server/index.js','--production'],{cwd:process.cwd(),env:{...process.env,PORT:'0',SQLITE_PATH:join(directory,'test.db'),DATABASE_URL:testDatabase,MAIL_TRANSPORT:'file',APP_ORIGIN:'',SMTP_HOST:'',MAIL_OUTBOX_DIR:join(directory,'mail')},stdio:['ignore','pipe','pipe']});
+    child=spawn(process.execPath,['server/index.js','--production'],{cwd:process.cwd(),env:{...process.env,TRUST_PROXY:'1',INSTANCE_ADMINS:'report-admin@example.test',INSTANCE_CONTACT:'contact@example.test',PORT:'0',SQLITE_PATH:join(directory,'test.db'),DATABASE_URL:testDatabase,MAIL_TRANSPORT:'file',APP_ORIGIN:'',SMTP_HOST:'',MAIL_OUTBOX_DIR:join(directory,'mail')},stdio:['ignore','pipe','pipe']});
     base=await new Promise((resolve,reject)=>{child.stdout.on('data',chunk=>{const match=chunk.toString().match(/http:\/\/localhost:\d+/);if(match)resolve(match[0]);});child.once('error',reject);child.once('exit',code=>reject(new Error('Serveur arrêté : '+code)));});
     alice=await request('/auth/register',{email:'alice@example.test',username:'Alice Test',password:'local-test-only-password'});bob=await request('/auth/register',{email:'bob@example.test',username:'Bob Test',password:'local-test-only-password'});
   });
@@ -198,6 +198,41 @@ describe('Multicord — intégration réelle HTTP / Socket.IO / '+(process.env.T
     seen=presence(e=>e.statuses[ids.alice]==='idle');alice.socket.emit('presence:away',{away:true});await seen;
     seen=presence(e=>e.statuses[ids.alice]==='online');alice.socket.emit('presence:away',{away:false});await seen;
     assert.equal((await request('/account/settings',{presence:'busy'},alice.cookie,'PATCH')).status,400);
+  });
+  it('signale, modère, suspend et supprime des comptes',async()=>{
+    const proxy={'X-Forwarded-For':'203.0.113.77'};
+    const sid=privateServer.id,code=(await request(`/servers/${sid}/invite`,{},alice.cookie)).data.code;
+    assert.equal((await fetch(base+'/api/instance').then(r=>r.json())).contact,'contact@example.test');
+    for(const page of ['conditions','confidentialite','mentions']){const r=await fetch(base+'/legal/'+page);assert.equal(r.status,200);assert.match(await r.text(),/contact@example\.test/);}
+    const admin=await request('/auth/register',{email:'report-admin@example.test',username:'Hébergeur',password:'local-test-only-password'},null,'POST',proxy);
+    assert.equal((await request('/bootstrap',null,admin.cookie)).data.instanceAdmin,true);assert.equal((await request('/bootstrap',null,bob.cookie)).data.instanceAdmin,false);
+    const spammy=await request('/auth/register',{email:'spammy@example.test',username:'Spammy',password:'local-test-only-password'},null,'POST',proxy);spammy.socket=await connect(spammy);
+    assert.equal((await request(`/invites/${code}`,{},spammy.cookie)).status,200);
+    assert.deepEqual(await emit(spammy.socket,'message:send',{channel:textChannel.id,content:'Achetez des pièces pas chères !!!'}),{ok:true});
+    const spam=(await request(`/channels/${textChannel.id}/messages`,null,bob.cookie)).data.at(-1);const spammyId=spam.user_id;
+    assert.equal((await request('/reports',{kind:'message',targetId:spam.id,reason:'illegal',details:''},bob.cookie)).status,400);
+    assert.equal((await request('/reports',{kind:'message',targetId:spam.id,reason:'spam',details:'Pub en boucle'},bob.cookie)).status,200);
+    assert.equal((await request('/reports',{kind:'message',targetId:spam.id,reason:'spam'},bob.cookie)).status,409);
+    assert.equal((await request(`/reports?server=${sid}`,null,bob.cookie)).status,403);
+    const forServer=(await request(`/reports?server=${sid}`,null,alice.cookie)).data;assert.equal(forServer.length,1);assert.equal(forServer[0].reporter_id,null);assert.equal(forServer[0].snapshot.content,'Achetez des pièces pas chères !!!');
+    assert.equal((await request(`/reports/${forServer[0].id}/decision`,{decision:'suspend_user'},alice.cookie)).status,403);
+    const deleted=event(bob.socket,'message:deleted');
+    assert.equal((await request(`/reports/${forServer[0].id}/decision`,{decision:'delete_content',note:'Spam'},alice.cookie)).status,200);assert.equal((await deleted).id,spam.id);
+    assert.equal((await request(`/reports?server=${sid}&status=handled`,null,alice.cookie)).data[0].decision,'delete_content');
+    assert.equal((await request('/reports',{kind:'user',targetId:spammyId,reason:'spam',serverId:sid},bob.cookie)).status,200);
+    assert.equal((await request('/reports',null,alice.cookie)).status,403);
+    const all=(await request('/reports',null,admin.cookie)).data;const userReport=all.find(r=>r.kind==='user');assert.ok(userReport.reporter);
+    assert.equal((await request(`/reports/${userReport.id}/decision`,{decision:'suspend_user',note:'Spam répété'},admin.cookie)).status,200);
+    assert.equal((await request('/bootstrap',null,spammy.cookie)).status,401);
+    const blocked=await request('/auth/login',{email:'spammy@example.test',password:'local-test-only-password'},null,'POST',proxy);assert.equal(blocked.status,403);assert.match(blocked.data.error,/suspendu.*Spam répété.*contact@example\.test/);
+    assert.equal((await request('/admin/suspended',null,admin.cookie)).data[0].id,spammyId);
+    assert.equal((await request(`/admin/users/${spammyId}/unsuspend`,{},admin.cookie)).status,200);
+    const back=await request('/auth/login',{email:'spammy@example.test',password:'local-test-only-password'},null,'POST',proxy);assert.equal(back.status,200);
+    assert.deepEqual(await emit(alice.socket,'message:send',{channel:textChannel.id,content:'Dernier avertissement'}),{ok:true});
+    assert.equal((await request('/account',{password:'mauvais-mot-de-passe'},back.cookie,'DELETE')).status,403);
+    assert.equal((await request('/account',{password:'local-test-only-password'},back.cookie,'DELETE')).status,200);
+    assert.equal((await request('/auth/login',{email:'spammy@example.test',password:'local-test-only-password'},null,'POST',proxy)).status,401);
+    assert.ok(!(await request(`/servers/${sid}`,null,alice.cookie)).data.members.some(m=>m.id===spammyId));
   });
   it('modifie, répond, réagit et transfère des messages',async()=>{
     const sid=privateServer.id,ids={alice:(await request('/bootstrap',null,alice.cookie)).data.user.id,bob:(await request('/bootstrap',null,bob.cookie)).data.user.id};
