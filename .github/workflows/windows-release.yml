@@ -28,7 +28,8 @@ jobs:
 
       - run: npm test
 
-      - run: npm run desktop:dist
+      # La release est publiée par la dernière étape, pas par electron-builder.
+      - run: npm run desktop:dist -- --publish never
 
       - name: Exe non signés
         id: unsigned
