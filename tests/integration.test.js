@@ -199,6 +199,38 @@ describe('Multicord — intégration réelle HTTP / Socket.IO / '+(process.env.T
     seen=presence(e=>e.statuses[ids.alice]==='online');alice.socket.emit('presence:away',{away:false});await seen;
     assert.equal((await request('/account/settings',{presence:'busy'},alice.cookie,'PATCH')).status,400);
   });
+  it('modifie, répond, réagit et transfère des messages',async()=>{
+    const sid=privateServer.id,ids={alice:(await request('/bootstrap',null,alice.cookie)).data.user.id,bob:(await request('/bootstrap',null,bob.cookie)).data.user.id};
+    await emit(alice.socket,'server:watch',sid);await emit(bob.socket,'server:watch',sid);
+    let incoming=event(bob.socket,'message');assert.deepEqual(await emit(alice.socket,'message:send',{channel:textChannel.id,content:'Message original'}),{ok:true});const original=await incoming;
+    assert.equal((await request(`/messages/${original.id}`,{content:'Piratage'},bob.cookie,'PATCH')).status,403);
+    const edited=event(bob.socket,'message:edited');const change=await request(`/messages/${original.id}`,{content:'Message corrigé'},alice.cookie,'PATCH');assert.equal(change.status,200);
+    assert.equal((await edited).content,'Message corrigé');assert.ok((await request(`/channels/${textChannel.id}/messages`,null,bob.cookie)).data.find(m=>m.id===original.id).edited_at);
+    const pinged=event(alice.socket,'mention');incoming=event(alice.socket,'message');
+    assert.deepEqual(await emit(bob.socket,'message:send',{channel:textChannel.id,content:'Je réponds',replyTo:original.id,replyPing:true}),{ok:true});
+    assert.equal((await pinged).channelId,textChannel.id);const answer=await incoming;assert.equal(answer.reply.id,original.id);assert.equal(answer.reply.content,'Message corrigé');assert.equal(answer.reply_ping,1);
+    let quiet=true;const spy=()=>{quiet=false;};alice.socket.on('mention',spy);
+    assert.deepEqual(await emit(bob.socket,'message:send',{channel:textChannel.id,content:'Sans mention',replyTo:original.id,replyPing:false}),{ok:true});
+    await new Promise(r=>setTimeout(r,200));alice.socket.off('mention',spy);assert.equal(quiet,true);
+    assert.ok((await emit(bob.socket,'message:send',{channel:textChannel.id,content:'x',replyTo:'inconnu'})).error);
+    const reacted=event(alice.socket,'message:reactions');assert.equal((await request(`/messages/${original.id}/reactions/${encodeURIComponent('👍')}`,{},bob.cookie,'PUT')).status,200);
+    assert.deepEqual((await reacted).reactions,[{emoji:'👍',users:[ids.bob]}]);
+    assert.equal((await request(`/messages/${original.id}/reactions/${encodeURIComponent('👍')}`,{},alice.cookie,'PUT')).status,200);
+    assert.equal((await request(`/messages/${original.id}/reactions/abc`,{},alice.cookie,'PUT')).status,400);
+    assert.deepEqual((await request(`/channels/${textChannel.id}/messages`,null,bob.cookie)).data.find(m=>m.id===original.id).reactions[0].users.sort(),[ids.alice,ids.bob].sort());
+    assert.equal((await request(`/messages/${original.id}/reactions/${encodeURIComponent('👍')}`,null,bob.cookie,'DELETE')).data.reactions[0].users.length,1);
+    const eve=await request('/auth/register',{email:'eve-forward@example.test',username:'Eve Test',password:'local-test-only-password'});ids.eve=(await request('/bootstrap',null,eve.cookie)).data.user.id;
+    const code=(await request(`/servers/${sid}/invite`,{},alice.cookie)).data.code;assert.equal((await request(`/invites/${code}`,{},eve.cookie)).status,200);
+    incoming=event(alice.socket,'message');
+    const forward=await request(`/messages/${original.id}/forward`,{channels:[voiceChannel.id],users:[ids.eve],comment:'Regarde ça'},bob.cookie);assert.equal(forward.status,200);assert.equal(forward.data.failed,0);
+    const copy=await incoming;assert.equal(copy.channel_id,voiceChannel.id);assert.equal(copy.forwarded.author_id,ids.alice);assert.equal(copy.content,'Message corrigé');
+    const conversation=(await request('/social',null,eve.cookie)).data.conversations.find(c=>c.peer.id===ids.bob);assert.ok(conversation);
+    const thread=(await request(`/direct/${conversation.id}/messages`,null,eve.cookie)).data.messages;const sent=thread.find(m=>m.forwarded);assert.equal(sent.forwarded.channel,textChannel.name);assert.equal(thread.at(-1).content,'Regarde ça');
+    assert.equal((await request(`/messages/${original.id}/forward`,{channels:[],users:['inconnu']},bob.cookie)).status,400);
+    assert.equal((await request(`/direct/messages/${thread.at(-1).id}`,{content:'Regarde ça !'},eve.cookie,'PATCH')).status,403);
+    const dmEdit=event(bob.socket,'direct:edited');assert.equal((await request(`/direct/messages/${thread.at(-1).id}`,{content:'Regarde ça !'},bob.cookie,'PATCH')).status,200);assert.equal((await dmEdit).content,'Regarde ça !');
+    assert.equal((await request(`/servers/${sid}/members/${ids.eve}/kick`,{},alice.cookie)).status,200);
+  });
   it('range les salons en catégories, privées ou non',async()=>{
     const sid=privateServer.id,bobId=(await request('/bootstrap',null,bob.cookie)).data.user.id;
     const initial=(await request(`/servers/${sid}`,null,alice.cookie)).data;assert.deepEqual(initial.categories.map(c=>c.name),['Le coin discussion','On se retrouve']);

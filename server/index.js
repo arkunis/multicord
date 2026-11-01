@@ -85,6 +85,68 @@ async function resolveMentions(userId,ch,content){
   for(const id of wanted)if(await member(id,ch.server_id)&&await canSeeChannel(db,id,ch))targets.push(id);
   return {text,targets};
 }
+// Ajoute l'aperçu du message cité (ou « supprimé ») et décode l'origine d'un message transféré.
+// Réactions regroupées par emoji, dans l'ordre où elles ont été ajoutées.
+async function reactionsOf(ids){
+  if(!ids.length)return {};
+  const rows=await db.all(`SELECT message_id,user_id,emoji FROM message_reactions WHERE message_id IN (${ids.map((_,i)=>'$'+(i+1)).join(',')}) ORDER BY created_at`,ids),out={};
+  for(const r of rows){const list=out[r.message_id]||=[];let e=list.find(x=>x.emoji===r.emoji);if(!e)list.push(e={emoji:r.emoji,users:[]});e.users.push(r.user_id);}
+  return out;
+}
+async function withReplies(list){
+  const reactions=await reactionsOf(list.map(m=>m.id));
+  const ids=[...new Set(list.map(m=>m.reply_to).filter(Boolean))];
+  const rows=ids.length?await db.all(`SELECT messages.id,messages.user_id,messages.content,users.username,users.color,users.avatar,(SELECT COUNT(*) FROM attachments WHERE attachments.message_id=messages.id) AS files FROM messages JOIN users ON users.id=messages.user_id WHERE messages.id IN (${ids.map((_,i)=>'$'+(i+1)).join(',')})`,ids):[];
+  return list.map(m=>{const r=m.reply_to&&rows.find(x=>x.id===m.reply_to);let forwarded=null;try{forwarded=m.forwarded?JSON.parse(m.forwarded):null;}catch{}
+    return {...m,forwarded,reactions:reactions[m.id]||[],reply:m.reply_to?(r?{id:r.id,user_id:r.user_id,username:r.username,color:r.color,avatar:r.avatar,content:String(r.content).slice(0,200),files:Number(r.files)}:{deleted:true}):null};});
+}
+// Copie les pièces jointes d'un message vers un autre (transfert).
+async function copyAttachments(tx,files,target){for(const f of files)await tx.run('INSERT INTO attachments (id,uploader_id,channel_id,conversation_id,message_id,direct_message_id,name,mime,size,data,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)',[randomUUID(),target.userId,target.channelId||null,target.conversationId||null,target.messageId||null,target.directMessageId||null,f.name,f.mime,f.size,f.data,new Date().toISOString()]);}
+// Ajouter (PUT) ou retirer (DELETE) sa réaction ; 20 emojis différents au plus par message.
+const EMOJI=/^[\p{Extended_Pictographic}\p{Emoji_Component}\u200d\ufe0f\u20e3]{1,16}$/u;
+for(const method of ['put','delete'])app[method]('/api/messages/:id/reactions/:emoji',async(req,res)=>{
+  const m=await db.one('SELECT id,channel_id FROM messages WHERE id=$1',[req.params.id]),ch=m&&await channelFor(req.user.id,m.channel_id,'sendMessages');
+  if(!ch) return res.status(404).json({error:'Message introuvable.'});
+  const emoji=req.params.emoji;if(!EMOJI.test(emoji)||!/\p{Extended_Pictographic}|\p{Regional_Indicator}|\u20e3/u.test(emoji)) return res.status(400).json({error:'Réaction invalide.'});
+  if(!rate(`react:${req.user.id}`,60)) return res.status(429).json({error:'Trop de réactions. Patientez un instant.'});
+  if(method==='put'){const kinds=await db.all('SELECT DISTINCT emoji FROM message_reactions WHERE message_id=$1',[m.id]);if(kinds.length>=20&&!kinds.some(k=>k.emoji===emoji)) return res.status(409).json({error:'20 réactions différentes au maximum par message.'});
+    await db.run('INSERT INTO message_reactions (message_id,user_id,emoji,created_at) VALUES ($1,$2,$3,$4) ON CONFLICT DO NOTHING',[m.id,req.user.id,emoji,new Date().toISOString()]);}
+  else await db.run('DELETE FROM message_reactions WHERE message_id=$1 AND user_id=$2 AND emoji=$3',[m.id,req.user.id,emoji]);
+  const change={id:m.id,channel_id:m.channel_id,reactions:(await reactionsOf([m.id]))[m.id]||[]};await emitChannel(ch,'message:reactions',change);res.json(change);
+});
+app.patch('/api/messages/:id',async(req,res)=>{
+  const m=await db.one('SELECT * FROM messages WHERE id=$1',[req.params.id]),ch=m&&await channelFor(req.user.id,m.channel_id);
+  if(!ch) return res.status(404).json({error:'Message introuvable.'});
+  if(m.user_id!==req.user.id) return res.status(403).json({error:'Vous ne pouvez modifier que vos propres messages.'});
+  const content=req.body.content,files=Number((await db.one('SELECT COUNT(*) AS n FROM attachments WHERE message_id=$1',[m.id])).n);
+  if(typeof content!=='string'||content.length>4000||(!content.trim()&&!files)) return res.status(400).json({error:'Message de 1 à 4 000 caractères requis.'});
+  if(!rate(`edit:${req.user.id}`,40)) return res.status(429).json({error:'Trop de modifications. Patientez un instant.'});
+  const {text}=await resolveMentions(req.user.id,ch,content.trim()),edited_at=new Date().toISOString();
+  await db.run('UPDATE messages SET content=$1,edited_at=$2 WHERE id=$3',[text,edited_at,m.id]);
+  const change={id:m.id,channel_id:m.channel_id,content:text,edited_at};await emitChannel(ch,'message:edited',change);res.json(change);
+});
+// Transfert d'un message vers des salons du même serveur et/ou en privé à des membres de ce serveur.
+app.post('/api/messages/:id/forward',async(req,res)=>{
+  const src=await db.one('SELECT messages.*,users.username FROM messages JOIN users ON users.id=messages.user_id WHERE messages.id=$1',[req.params.id]),from=src&&await channelFor(req.user.id,src.channel_id);
+  if(!from) return res.status(404).json({error:'Message introuvable.'});
+  const {channels=[],users=[],comment=''}=req.body;
+  if(!Array.isArray(channels)||!Array.isArray(users)||[...channels,...users].some(x=>typeof x!=='string')||typeof comment!=='string'||comment.length>2000) return res.status(400).json({error:'Destinataires invalides.'});
+  if(!channels.length&&!users.length||channels.length+users.length>5) return res.status(400).json({error:'Choisissez de 1 à 5 destinataires.'});
+  if(!rate(`forward:${req.user.id}`,20)) return res.status(429).json({error:'Trop de transferts. Patientez une minute.'});
+  const targets=[];
+  for(const id of new Set(channels)){const ch=await channelFor(req.user.id,id,'sendMessages');if(!ch||ch.server_id!==from.server_id) return res.status(403).json({error:'Vous ne pouvez pas écrire dans l’un des salons choisis.'});targets.push(ch);}
+  for(const id of new Set(users)){if(id===req.user.id||!await member(id,from.server_id)) return res.status(400).json({error:'Une des personnes choisies n’est pas membre de ce serveur.'});}
+  const server=await db.one('SELECT name FROM servers WHERE id=$1',[from.server_id]),files=await db.all('SELECT * FROM attachments WHERE message_id=$1',[src.id]);
+  const origin=JSON.stringify({author:src.username,author_id:src.user_id,channel:from.name,server:server.name,created_at:src.created_at});
+  const current=await db.one('SELECT * FROM users WHERE id=$1',[req.user.id]);
+  const post=async(ch,content,forwarded)=>{const msg={id:randomUUID(),channel_id:ch.id,user_id:req.user.id,content,created_at:new Date().toISOString(),edited_at:null,reply_to:null,reply_ping:0,forwarded,username:current.username,color:current.color,avatar:current.avatar,pinned_at:null};
+    await db.transaction(async tx=>{await tx.run('INSERT INTO messages (id,channel_id,user_id,content,created_at,forwarded) VALUES ($1,$2,$3,$4,$5,$6)',[msg.id,ch.id,req.user.id,content,msg.created_at,forwarded]);if(forwarded)await copyAttachments(tx,files,{userId:req.user.id,channelId:ch.id,messageId:msg.id});});
+    await emitChannel(ch,'message',(await withReplies(await withAttachments(db,[msg])))[0]);};
+  let failed=0;
+  for(const ch of targets){await post(ch,src.content,origin);if(comment.trim())await post(ch,(await resolveMentions(req.user.id,ch,comment.trim())).text,null);}
+  for(const id of new Set(users)){try{await social.sendDirect(req.user.id,id,{content:src.content,forwarded:origin,files});if(comment.trim())await social.sendDirect(req.user.id,id,{content:comment.trim()});}catch(e){if(!e.status)throw e;failed++;}}
+  res.json({ok:true,failed});
+});
 async function visibleChannels(user,serverId){
   const p=await permissionsFor(db,user,serverId),channels=await db.all('SELECT * FROM channels WHERE server_id=$1 ORDER BY position,name',[serverId]),access=await db.all('SELECT channel_roles.* FROM channel_roles JOIN channels ON channels.id=channel_roles.channel_id WHERE channels.server_id=$1',[serverId]);
   const result=[];for(const c of channels)if(await canSeeChannel(db,user,c,p))result.push({...c,roles:access.filter(a=>a.channel_id===c.id).map(a=>a.role_id)});return result;
@@ -203,11 +265,11 @@ app.post('/api/invites/:code',async(req,res)=>{
 app.get('/api/channels/:id/messages',async(req,res)=>{
   if(!await channelFor(req.user.id,req.params.id)) return res.status(403).json({error:'Accès refusé.'});
   const messages=await db.all('SELECT messages.*,users.username,users.color,users.avatar,message_pins.pinned_at FROM messages JOIN users ON users.id=messages.user_id LEFT JOIN message_pins ON message_pins.message_id=messages.id WHERE messages.channel_id=$1 ORDER BY messages.created_at DESC LIMIT 100',[req.params.id]);
-  res.json(await withAttachments(db,messages.reverse()));
+  res.json(await withReplies(await withAttachments(db,messages.reverse())));
 });
 app.get('/api/channels/:id/pins',async(req,res)=>{
   if(!await channelFor(req.user.id,req.params.id)) return res.status(403).json({error:'Accès refusé.'});
-  res.json(await withAttachments(db,await db.all('SELECT messages.*,users.username,users.color,users.avatar,message_pins.pinned_at FROM message_pins JOIN messages ON messages.id=message_pins.message_id JOIN users ON users.id=messages.user_id WHERE message_pins.channel_id=$1 ORDER BY message_pins.pinned_at DESC',[req.params.id])));
+  res.json(await withReplies(await withAttachments(db,await db.all('SELECT messages.*,users.username,users.color,users.avatar,message_pins.pinned_at FROM message_pins JOIN messages ON messages.id=message_pins.message_id JOIN users ON users.id=messages.user_id WHERE message_pins.channel_id=$1 ORDER BY message_pins.pinned_at DESC',[req.params.id]))));
 });
 app.get('/api/servers/:id/search',async(req,res)=>{
   if(!await member(req.user.id,req.params.id)) return res.status(403).json({error:'Ce serveur est privé.'});
@@ -255,7 +317,7 @@ io.on('connection',async socket=>{
   });
   if(!online.has(user.id)) online.set(user.id,new Set()); online.get(user.id).add(socket.id);
   listen('server:watch',async(id,ack)=>{if(await member(user.id,id)) {socket.join(`server:${id}`);await emitPresence(id);ack?.({ok:true});}});
-  listen('message:send',async({channel,content,attachments},ack)=>{
+  listen('message:send',async({channel,content,attachments,replyTo,replyPing},ack)=>{
     try {
       // Un message peut n'être qu'un fichier : le texte devient alors facultatif.
       const files=Array.isArray(attachments)?attachments:[];
@@ -263,11 +325,16 @@ io.on('connection',async socket=>{
       if(!rate(`msg:${user.id}`,40)) return ack?.({error:'Un peu de patience : trop de messages.'});
       const ch=await channelFor(user.id,channel,'sendMessages'); if(!ch) return ack?.({error:'Salon inaccessible.'});
       const current=await db.one('SELECT * FROM users WHERE id=$1',[user.id]);
+      const reply=typeof replyTo==='string'?await db.one('SELECT id,user_id FROM messages WHERE id=$1 AND channel_id=$2',[replyTo,channel]):null;
+      if(replyTo&&!reply) return ack?.({error:'Le message auquel vous répondez n’existe plus.'});
       const {text,targets}=await resolveMentions(user.id,ch,content.trim());
-      const msg={id:randomUUID(),channel_id:channel,user_id:user.id,content:text,created_at:new Date().toISOString(),username:current.username,color:current.color,avatar:current.avatar,pinned_at:null};
-      try{msg.attachments=await db.transaction(async tx=>{await tx.run('INSERT INTO messages VALUES ($1,$2,$3,$4,$5)',[msg.id,channel,user.id,msg.content,msg.created_at]);return claimAttachments(tx,{userId:user.id,ids:files,channelId:channel,messageId:msg.id});});}
+      // Répondre mentionne l'auteur du message visé, sauf si l'option est coupée.
+      const ping=!!reply&&replyPing!==false;
+      if(ping&&reply.user_id!==user.id&&!targets.includes(reply.user_id)&&await member(reply.user_id,ch.server_id)&&await canSeeChannel(db,reply.user_id,ch))targets.push(reply.user_id);
+      const msg={id:randomUUID(),channel_id:channel,user_id:user.id,content:text,created_at:new Date().toISOString(),edited_at:null,reply_to:reply?.id||null,reply_ping:ping?1:0,forwarded:null,username:current.username,color:current.color,avatar:current.avatar,pinned_at:null};
+      try{msg.attachments=await db.transaction(async tx=>{await tx.run('INSERT INTO messages (id,channel_id,user_id,content,created_at,reply_to,reply_ping) VALUES ($1,$2,$3,$4,$5,$6,$7)',[msg.id,channel,user.id,msg.content,msg.created_at,msg.reply_to,msg.reply_ping]);return claimAttachments(tx,{userId:user.id,ids:files,channelId:channel,messageId:msg.id});});}
       catch(e){if(e.status)return ack?.({error:e.message});throw e;}
-      await emitChannel(ch,'message',msg);ack?.({ok:true});
+      await emitChannel(ch,'message',(await withReplies([msg]))[0]);ack?.({ok:true});
       const serverName=(await db.one('SELECT name FROM servers WHERE id=$1',[ch.server_id]))?.name;
       for(const id of targets)io.to(`user:${id}`).emit('mention',{serverId:ch.server_id,serverName,channelId:ch.id,channelName:ch.name,channelType:ch.type,messageId:msg.id,author:current.username,content:msg.content});
     } catch { ack?.({error:'Le message n’a pas pu être envoyé.'}); }

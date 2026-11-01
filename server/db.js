@@ -54,6 +54,12 @@ export async function openDatabase(url = process.env.DATABASE_URL, path = proces
     const added=await tx.one('INSERT INTO app_migrations (id,applied_at) VALUES ($1,$2) ON CONFLICT DO NOTHING RETURNING id',['profile-avatar-v1',new Date().toISOString()]);
     if(added)await tx.run('ALTER TABLE users ADD COLUMN avatar TEXT');
   });
+  // Messages modifiés, réponses et transferts.
+  await db.transaction(async tx=>{
+    const added=await tx.one('INSERT INTO app_migrations (id,applied_at) VALUES ($1,$2) ON CONFLICT DO NOTHING RETURNING id',['message-actions-v1',new Date().toISOString()]);
+    if(!added)return;
+    for(const sql of ['ALTER TABLE messages ADD COLUMN edited_at TEXT','ALTER TABLE messages ADD COLUMN reply_to TEXT','ALTER TABLE messages ADD COLUMN reply_ping INTEGER NOT NULL DEFAULT 0','ALTER TABLE messages ADD COLUMN forwarded TEXT','ALTER TABLE direct_messages ADD COLUMN edited_at TEXT','ALTER TABLE direct_messages ADD COLUMN forwarded TEXT'])await tx.run(sql);
+  });
   // Catégories de salons : les serveurs existants reçoivent les deux groupes affichés jusqu'ici.
   await db.transaction(async tx=>{
     const added=await tx.one('INSERT INTO app_migrations (id,applied_at) VALUES ($1,$2) ON CONFLICT DO NOTHING RETURNING id',['channel-categories-v1',new Date().toISOString()]);
@@ -109,6 +115,8 @@ const schema = [
   ,`CREATE INDEX IF NOT EXISTS attachments_direct_message ON attachments(direct_message_id)`
   ,`CREATE TABLE IF NOT EXISTS channel_categories (id TEXT PRIMARY KEY,server_id TEXT NOT NULL REFERENCES servers(id) ON DELETE CASCADE,name TEXT NOT NULL,position INTEGER NOT NULL DEFAULT 0)`
   ,`CREATE TABLE IF NOT EXISTS category_roles (category_id TEXT NOT NULL REFERENCES channel_categories(id) ON DELETE CASCADE,role_id TEXT NOT NULL REFERENCES server_roles(id) ON DELETE CASCADE,PRIMARY KEY(category_id,role_id))`
+  ,`CREATE TABLE IF NOT EXISTS message_reactions (message_id TEXT NOT NULL REFERENCES messages(id) ON DELETE CASCADE,user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,emoji TEXT NOT NULL,created_at TEXT NOT NULL,PRIMARY KEY(message_id,user_id,emoji))`
+  ,`CREATE INDEX IF NOT EXISTS message_reactions_message ON message_reactions(message_id,created_at)`
   ,`CREATE TABLE IF NOT EXISTS channel_roles (channel_id TEXT NOT NULL REFERENCES channels(id) ON DELETE CASCADE,role_id TEXT NOT NULL REFERENCES server_roles(id) ON DELETE CASCADE,PRIMARY KEY(channel_id,role_id))`
   ,`CREATE TABLE IF NOT EXISTS server_member_roles (server_id TEXT NOT NULL,user_id TEXT NOT NULL,role_id TEXT NOT NULL,PRIMARY KEY(server_id,user_id,role_id),FOREIGN KEY(server_id,user_id) REFERENCES memberships(server_id,user_id) ON DELETE CASCADE,FOREIGN KEY(server_id,role_id) REFERENCES server_roles(server_id,id) ON DELETE CASCADE)`
 ];

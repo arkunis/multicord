@@ -4,6 +4,7 @@ import { claimAttachments, withAttachments } from './attachments.js';
 
 const pair=(a,b)=>[a,b].sort();
 async function lockPair(tx,a,b){for(const id of pair(a,b))await tx.run('UPDATE users SET id=id WHERE id=$1',[id]);}
+const parseForwarded=m=>{let forwarded=null;try{forwarded=m.forwarded?JSON.parse(m.forwarded):null;}catch{}return {...m,forwarded};};
 export function installSocial(app,{db,io,online,rate,settings,presenceOf}){
   const notify=(...ids)=>{for(const id of new Set(ids))io.to(`user:${id}`).emit('social:changed');};
   const blocked=(tx,a,b)=>tx.one('SELECT blocker_id FROM user_blocks WHERE (blocker_id=$1 AND blocked_id=$2) OR (blocker_id=$2 AND blocked_id=$1)',[a,b]);
@@ -122,7 +123,7 @@ export function installSocial(app,{db,io,online,rate,settings,presenceOf}){
     if(!Number.isInteger(before)||before<1)return res.status(400).json({error:'Position de message invalide.'});
     const messages=await db.all('SELECT m.*,u.username,u.color,u.avatar,h.discriminator FROM direct_messages m JOIN users u ON u.id=m.sender_id JOIN user_handles h ON h.user_id=u.id WHERE conversation_id=$1 AND position<$2 ORDER BY position DESC LIMIT 100',[conversation.id,before]);
     const peerId=conversation.user_a===req.user.id?conversation.user_b:conversation.user_a;
-    res.json({id:conversation.id,peer:await person(peerId),messages:await withAttachments(db,messages.reverse(),true),blocked:!!await blocked(db,req.user.id,peerId)});
+    res.json({id:conversation.id,peer:await person(peerId),messages:(await withAttachments(db,messages.reverse(),true)).map(parseForwarded),blocked:!!await blocked(db,req.user.id,peerId)});
   });
   app.post('/api/direct/:id/messages',async(req,res)=>{
     const content=req.body.content,files=Array.isArray(req.body.attachments)?req.body.attachments:[];
@@ -137,7 +138,7 @@ export function installSocial(app,{db,io,online,rate,settings,presenceOf}){
       await tx.run('UPDATE direct_conversations SET id=id WHERE id=$1',[conversation.id]);
       const last=await tx.one('SELECT COALESCE(MAX(position),0) AS n FROM direct_messages WHERE conversation_id=$1',[conversation.id]);
       const msg={id:randomUUID(),conversation_id:conversation.id,sender_id:req.user.id,content:content.trim(),created_at:new Date().toISOString(),position:Number(last.n)+1};
-      await tx.run('INSERT INTO direct_messages VALUES ($1,$2,$3,$4,$5,$6)',Object.values(msg));
+      await tx.run('INSERT INTO direct_messages (id,conversation_id,sender_id,content,created_at,position) VALUES ($1,$2,$3,$4,$5,$6)',Object.values(msg));
       const field=conversation.user_a===req.user.id?'read_a':'read_b';
       await tx.run(`UPDATE direct_conversations SET ${field}=$1 WHERE id=$2`,[msg.position,conversation.id]);
       return {...msg,attachments:await claimAttachments(tx,{userId:req.user.id,ids:files,conversationId:conversation.id,messageId:msg.id,direct:true})};
@@ -157,5 +158,34 @@ export function installSocial(app,{db,io,online,rate,settings,presenceOf}){
     await db.run(`UPDATE direct_conversations SET ${field}=CASE WHEN ${field}<$1 THEN $1 ELSE ${field} END WHERE id=$2`,[read,conversation.id]);
     notify(req.user.id);res.json({ok:true});
   });
-  return {notifyContacts,notify};
+  // Modifier son propre message privé.
+  app.patch('/api/direct/messages/:id',async(req,res)=>{
+    const m=await db.one('SELECT * FROM direct_messages WHERE id=$1',[req.params.id]),conversation=m&&await conversationFor(req.user.id,m.conversation_id);
+    if(!conversation)return res.status(404).json({error:'Message introuvable.'});
+    if(m.sender_id!==req.user.id)return res.status(403).json({error:'Vous ne pouvez modifier que vos propres messages.'});
+    const content=req.body.content,files=Number((await db.one('SELECT COUNT(*) AS n FROM attachments WHERE direct_message_id=$1',[m.id])).n);
+    if(typeof content!=='string'||content.length>4000||(!content.trim()&&!files))return res.status(400).json({error:'Message de 1 à 4 000 caractères requis.'});
+    const change={id:m.id,conversation_id:m.conversation_id,content:content.trim(),edited_at:new Date().toISOString()};
+    await db.run('UPDATE direct_messages SET content=$1,edited_at=$2 WHERE id=$3',[change.content,change.edited_at,m.id]);
+    io.to(`user:${conversation.user_a}`).to(`user:${conversation.user_b}`).emit('direct:edited',change);res.json(change);
+  });
+  // Envoi en privé utilisé par le transfert : mêmes règles que l'envoi normal (blocages, confidentialité).
+  async function sendDirect(fromId,toId,{content,forwarded=null,files=[]}){
+    const [a,b]=pair(fromId,toId);
+    const message=await db.transaction(async tx=>{
+      await lockPair(tx,a,b);
+      if(await blocked(tx,a,b)||!await allowed(tx,fromId,toId,'dmPolicy'))throw Object.assign(new Error('Cette personne n’accepte pas vos messages privés.'),{status:403});
+      let conversation=await tx.one('SELECT id FROM direct_conversations WHERE user_a=$1 AND user_b=$2',[a,b]);
+      if(!conversation){conversation={id:randomUUID()};await tx.run('INSERT INTO direct_conversations (id,user_a,user_b,created_at) VALUES ($1,$2,$3,$4)',[conversation.id,a,b,new Date().toISOString()]);}
+      const last=await tx.one('SELECT COALESCE(MAX(position),0) AS n FROM direct_messages WHERE conversation_id=$1',[conversation.id]);
+      const msg={id:randomUUID(),conversation_id:conversation.id,sender_id:fromId,content,created_at:new Date().toISOString(),position:Number(last.n)+1};
+      await tx.run('INSERT INTO direct_messages (id,conversation_id,sender_id,content,created_at,position,forwarded) VALUES ($1,$2,$3,$4,$5,$6,$7)',[...Object.values(msg),forwarded]);
+      await tx.run(`UPDATE direct_conversations SET ${a===fromId?'read_a':'read_b'}=$1 WHERE id=$2`,[msg.position,conversation.id]);
+      for(const f of files)await tx.run('INSERT INTO attachments (id,uploader_id,conversation_id,direct_message_id,name,mime,size,data,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)',[randomUUID(),fromId,conversation.id,msg.id,f.name,f.mime,f.size,f.data,new Date().toISOString()]);
+      return {...msg,forwarded};
+    });
+    const current=await person(fromId),[decorated]=await withAttachments(db,[message],true);
+    io.to(`user:${fromId}`).to(`user:${toId}`).emit('direct:message',parseForwarded({...decorated,username:current.username,color:current.color,avatar:current.avatar,discriminator:current.discriminator}));notify(a,b);
+  }
+  return {notifyContacts,notify,sendDirect};
 }
