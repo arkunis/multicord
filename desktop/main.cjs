@@ -7,7 +7,7 @@ const {pathToFileURL}=require('node:url');
 const {validateConfig,validateServerUrl}=require('./config.cjs');
 app.setName('Multicord');app.setAppUserModelId('fr.multicord.desktop');nativeTheme.themeSource='dark';
 if(process.env.MULTICORD_DESKTOP_DATA_DIR)app.setPath('userData',path.resolve(process.env.MULTICORD_DESKTOP_DATA_DIR));
-const gotLock=app.requestSingleInstanceLock();if(!gotLock){app.quit();}else{app.whenReady().then(start).catch(()=>dialog.showErrorBox('Multicord','Impossible de démarrer Multicord. Vérifiez la configuration du serveur.'));}
+const gotLock=app.requestSingleInstanceLock();if(!gotLock){app.quit();}else{app.whenReady().then(start).then(setupUpdates).catch(()=>dialog.showErrorBox('Multicord','Impossible de démarrer Multicord. Vérifiez la configuration du serveur.'));}
 const dataDir=app.getPath('userData'),configPath=path.join(dataDir,'connection.json'),icon=path.join(__dirname,'assets','multicord.ico');
 const localPage=name=>pathToFileURL(path.join(__dirname,name+'.html')).href;
 let main,control,picker,tray,backend,origin,quitting=false,config,pendingCapture,captureSources=[],startup=0,lastNotification=0,pendingInvite=null;
@@ -98,6 +98,30 @@ async function start(){
  try{tray=new Tray(icon);tray.setToolTip('Multicord');tray.setContextMenu(Menu.buildFromTemplate([{label:'Ouvrir Multicord',click:show},{label:'Connexion au serveur…',click:()=>openConnection()},{type:'separator'},{label:'Quitter Multicord',click:()=>app.quit()}]));tray.on('double-click',show);}catch{}
  await main.loadFile(path.join(__dirname,'loading.html'));show();await connect();
 }
+// Mises à jour : la version installée télécharge la nouvelle release GitHub en arrière-plan et l'installe au redémarrage.
+// La version portable ne peut pas se remplacer elle-même : elle signale seulement qu'une version plus récente existe.
+let updater=null,updateState={status:'idle'};
+const RELEASES='https://arkunis.github.io/multicord/#telecharger';
+const newer=(a,b)=>{const x=a.split('.').map(Number),y=b.split('.').map(Number);for(let i=0;i<3;i++){if((x[i]||0)!==(y[i]||0))return (x[i]||0)>(y[i]||0);}return false;};
+function sendUpdate(state){updateState=state;if(main&&!main.isDestroyed())main.webContents.send('desktop:update');}
+function setupUpdates(){
+ if(!app.isPackaged||process.env.MULTICORD_DISABLE_UPDATES)return;
+ if(process.env.PORTABLE_EXECUTABLE_FILE){
+  const check=async()=>{try{const r=await fetch('https://api.github.com/repos/arkunis/multicord/releases/latest',{headers:{Accept:'application/vnd.github+json'},signal:AbortSignal.timeout(10000)});const d=await r.json();const v=String(d.tag_name||'').replace(/^v/,'');if(/^\d+\.\d+\.\d+$/.test(v)&&newer(v,app.getVersion()))sendUpdate({status:'portable',version:v,url:RELEASES});}catch{}};
+  setTimeout(check,15000);setInterval(check,6*3600e3);return;
+ }
+ try{({autoUpdater:updater}=require('electron-updater'));}catch{return;}
+ updater.autoDownload=true;updater.autoInstallOnAppQuit=true;updater.logger=null;
+ if(process.env.MULTICORD_UPDATE_URL)updater.setFeedURL({provider:'generic',url:process.env.MULTICORD_UPDATE_URL});
+ updater.on('update-available',info=>sendUpdate({status:'downloading',version:info.version,percent:0}));
+ updater.on('download-progress',p=>sendUpdate({status:'downloading',version:updateState.version,percent:Math.round(p.percent)}));
+ updater.on('update-downloaded',info=>sendUpdate({status:'ready',version:info.version}));
+ updater.on('error',error=>{updateState={...(updateState.status==='downloading'?{status:'idle'}:updateState),error:String(error?.message||error).slice(0,300)};});
+ const check=()=>updater.checkForUpdates().catch(()=>{});
+ setTimeout(check,10000);setInterval(check,4*3600e3);
+}
+ipcMain.handle('desktop:update-state',event=>isTrusted(event)?updateState:null);
+ipcMain.handle('desktop:install-update',event=>{if(!isTrusted(event)||updateState.status!=='ready'||!updater)return false;quitting=true;setImmediate(()=>updater.quitAndInstall(true,true));return true;});
 ipcMain.handle('desktop:version',event=>{if(!isTrusted(event))return null;return {version:app.getVersion(),platform:process.platform};});
 ipcMain.handle('desktop:connection',event=>{if(isTrusted(event))openConnection();});
 ipcMain.handle('desktop:pick-screen',event=>isTrusted(event)?new Promise(resolve=>openPicker(source=>resolve(source?source.id:null))):null);

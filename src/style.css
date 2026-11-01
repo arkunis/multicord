@@ -491,3 +491,10 @@ i.presence-invisible::after{content:'';position:absolute;inset:28%;border-radius
 /* Recherche des paramètres : un seul contour, celui du champ */
 .settings-search input,.settings-search input:focus,.settings-search input:focus-visible{outline:none!important;box-shadow:none!important;border:0!important}
 .settings-search:focus-within{border-color:#b9d8b2!important}
+/* Bandeau de mise à jour */
+.update-banner{position:relative;display:flex;align-items:center;gap:10px;margin:0 8px 8px;padding:9px 10px 9px 12px;border-radius:9px;background:#21301e;border:1px solid #b9d8b240;overflow:hidden}
+.update-banner>span{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.update-banner strong{font-size:12px;color:#e1f0d8}
+.update-banner small{font-size:10px;color:#9fb193;line-height:1.35}
+.update-banner button,.update-banner a{flex:none;padding:7px 11px;border-radius:7px;background:#b9d8b2;color:#283d23;font-size:11px;font-weight:700;text-decoration:none}
+.update-banner>i{position:absolute;left:0;bottom:0;height:3px;width:var(--progress);background:#b9d8b2;transition:width .3s}

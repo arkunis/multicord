@@ -2,6 +2,8 @@
 
 Première version fonctionnelle d’une application communautaire : serveurs, salons, messages en temps réel et appels hébergés par les participants. Interface française anthracite / sauge, responsive, avec illustration originale générée.
 
+**Site et téléchargement : [arkunis.github.io/multicord](https://arkunis.github.io/multicord/)** — l’installateur Windows se met ensuite à jour automatiquement.
+
 ## Démarrer sous Windows
 
 Prérequis : **Node.js 24 LTS** (SQLite intégré). Double-cliquer sur **Lancer Multicord.cmd**, ou :
@@ -123,6 +125,12 @@ La page Paramètres propose compte, sécurité, appareils connectés, confidenti
 Pendant un appel, cliquer sur un participant ou sur **Volume des participants** pour régler sa voix de **0 à 100 %**, la couper uniquement pour soi ou rétablir son volume. L’audio continue pendant la navigation. Voir [le guide des paramètres et du volume](docs/PARAMETRES-ET-VOLUME.md).
 
 Les comptes et les serveurs peuvent désormais recevoir leurs propres images. Les serveurs disposent aussi de rôles personnalisés, de six permissions vérifiées côté serveur, d’une attribution aux membres, de réglages des salons et d’une révocation des liens d’invitation. Voir [serveurs et rôles](docs/SERVEURS-ET-ROLES.md).
+
+## Mises à jour de l’application
+
+L’application Windows installée vérifie les releases GitHub au démarrage puis toutes les 4 heures (module `electron-updater`). Une nouvelle version est téléchargée en arrière-plan ; un bandeau propose de redémarrer, sinon elle s’installe à la fermeture. La version portable signale seulement qu’une version plus récente existe et renvoie vers le site.
+
+Pour publier une mise à jour : changer `version` dans `package.json`, puis pousser un tag `vX.Y.Z`. Le workflow `windows-release.yml` construit l’installateur, le fait signer (dès que SignPath est configuré), recalcule les empreintes de `latest.yml` après signature (`scripts/refresh-update-manifest.mjs`) et publie la release. `MULTICORD_DISABLE_UPDATES=1` désactive la vérification.
 
 ## Licence
 

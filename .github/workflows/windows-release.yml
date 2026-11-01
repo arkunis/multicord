@@ -36,7 +36,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: multicord-windows-unsigned
-          path: release/*.exe
+          path: |
+            release/*.exe
+            release/latest.yml
           if-no-files-found: error
 
       - name: Signature SignPath
@@ -51,9 +53,16 @@ jobs:
           wait-for-completion: true
           output-artifact-directory: signed
 
+      # La signature modifie les exe : on recalcule leurs empreintes pour la mise à jour automatique.
+      - name: Manifeste de mise à jour
+        if: env.SIGNING_READY == 'true'
+        run: node scripts/refresh-update-manifest.mjs signed
+
       - name: Release GitHub
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: ${{ env.SIGNING_READY == 'true' && 'signed/*.exe' || 'release/*.exe' }}
+          files: |
+            ${{ env.SIGNING_READY == 'true' && 'signed' || 'release' }}/*.exe
+            ${{ env.SIGNING_READY == 'true' && 'signed' || 'release' }}/latest.yml
           generate_release_notes: true

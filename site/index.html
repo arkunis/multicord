@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Multicord — Un endroit à vous</title>
+<meta name="description" content="Multicord : messagerie, salons et appels vocaux pour vos communautés. Gratuit, open source, sans publicité ni pistage. Application Windows avec mises à jour automatiques.">
+<meta name="theme-color" content="#171918">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Multicord — Un endroit à vous">
+<meta property="og:description" content="Messagerie, salons et appels vocaux pour vos communautés. Gratuit et open source.">
+<meta property="og:image" content="https://arkunis.github.io/multicord/assets/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="nav">
+  <a class="brand" href="#" aria-label="Multicord, accueil">
+    <svg viewBox="0 0 44 36" fill="none" aria-hidden="true"><path d="M5 27V13c0-8 11-8 11 0v10-10c0-8 12-8 12 0v10-10c0-8 11-8 11 0v14" stroke="currentColor" stroke-width="5" stroke-linecap="round"/></svg>
+    <span>multicord<b>.</b></span>
+  </a>
+  <nav aria-label="Navigation principale">
+    <a href="#fonctionnalites">Fonctionnalités</a>
+    <a href="#telecharger">Télécharger</a>
+    <a href="#questions">Questions</a>
+    <a class="nav-github" href="https://github.com/arkunis/multicord" rel="noopener">GitHub</a>
+  </nav>
+</header>
+
+<main>
+  <section class="hero">
+    <div class="hero-text">
+      <span class="eyebrow">Gratuit · Open source · Sans pub ni pistage</span>
+      <h1>Un endroit à vous.<br><em>Des moments ensemble.</em></h1>
+      <p>Multicord réunit vos amis et vos communautés : salons de discussion, appels vocaux avec partage d’écran, messages privés et rôles. Sur votre propre serveur, à votre rythme.</p>
+      <div class="hero-actions">
+        <a class="button primary" data-download="setup" href="https://github.com/arkunis/multicord/releases/latest">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5.5 10 4.5v7H3zM11 4.4 21 3v8.5H11zM3 12.5h7v7l-7-1zM11 12.5h10V21l-10-1.4z" fill="currentColor"/></svg>
+          Télécharger pour Windows
+        </a>
+        <a class="button ghost" href="#fonctionnalites">Découvrir</a>
+      </div>
+      <p class="hero-meta" data-release-meta>Windows 10 et 11 · 64 bits</p>
+    </div>
+    <figure class="window hero-shot">
+      <img src="assets/chat.webp" width="1380" height="864" alt="Le salon « général » d’un serveur Multicord : messages avec réactions, réponse et mention, liste des membres en ligne et salon vocal occupé.">
+    </figure>
+  </section>
+
+  <section class="features" id="fonctionnalites" aria-labelledby="features-title">
+    <div class="section-head">
+      <span class="eyebrow">Tout ce qu’il faut</span>
+      <h2 id="features-title">Pensé pour se retrouver</h2>
+    </div>
+    <div class="feature-grid">
+      <article><span class="icon">#</span><h3>Serveurs et salons</h3><p>Salons textuels et vocaux rangés en catégories, privées ou ouvertes. Glissez-déposez pour réorganiser.</p></article>
+      <article><span class="icon">🎧</span><h3>Appels clairs</h3><p>Vocal, caméra et partage d’écran. Un halo montre qui parle, et la réduction du bruit par IA efface clavier et ventilateur.</p></article>
+      <article><span class="icon">💬</span><h3>Messages vivants</h3><p>Réponses, réactions, mentions, mise en forme, emojis et fichiers jusqu’à 5 Mo. Modifiez ou transférez un message en un clic.</p></article>
+      <article><span class="icon">🛡️</span><h3>Rôles et modération</h3><p>Permissions fines, hiérarchie des rôles, mute pour tous, expulsion, bannissement et pseudo par serveur.</p></article>
+      <article><span class="icon">✨</span><h3>Profils et présence</h3><p>Statut personnalisé, bio, bannière, et présence en ligne, absent, ne pas déranger ou invisible.</p></article>
+      <article><span class="icon">🎨</span><h3>11 thèmes</h3><p>Sauge, Océan, Lavande, Ambre, Graphite, Clair… Choisissez l’ambiance qui vous ressemble.</p></article>
+      <article><span class="icon">⟳</span><h3>Mises à jour automatiques</h3><p>L’application se met à jour toute seule en arrière-plan. Un redémarrage, et c’est fait.</p></article>
+      <article><span class="icon">🔒</span><h3>Vos données chez vous</h3><p>Aucune publicité, aucune télémétrie. Le code est public et vous pouvez héberger votre propre serveur.</p></article>
+    </div>
+  </section>
+
+  <section class="showcase" aria-label="Aperçus de l’application">
+    <div class="showcase-row">
+      <figure class="window"><img src="assets/voice.webp" width="1380" height="864" loading="lazy" alt="Un appel vocal à quatre : la tuile de la personne qui parle s’illumine en vert."></figure>
+      <div><span class="eyebrow">Vocal</span><h2>On sait qui parle</h2><p>Les tuiles s’illuminent au rythme des voix, l’appel continue même si l’hôte s’en va, et chacun règle le volume des autres de 0 à 200 %. La reconnexion est automatique en cas de coupure.</p></div>
+    </div>
+    <div class="showcase-row reverse">
+      <figure class="window"><img src="assets/profile.webp" width="1380" height="864" loading="lazy" alt="La fiche profil de Lina : statut, bio, pronoms, salon vocal en cours et champ pour lui écrire."></figure>
+      <div><span class="eyebrow">Profils</span><h2>Un clic pour faire connaissance</h2><p>Statut, bio, pronoms, amis et serveurs en commun, salon vocal en cours : tout est sur la fiche, avec un champ pour écrire directement en privé.</p></div>
+    </div>
+    <div class="showcase-row">
+      <figure class="window"><img src="assets/themes.webp" width="1380" height="864" loading="lazy" alt="Les paramètres d’apparence avec onze thèmes de couleur, le thème Océan sélectionné."></figure>
+      <div><span class="eyebrow">Apparence</span><h2>À votre image</h2><p>Onze palettes, un thème clair pour la journée, la taille du texte et l’affichage compact. Vos préférences vous suivent sur tous vos appareils.</p></div>
+    </div>
+  </section>
+
+  <section class="download" id="telecharger" aria-labelledby="download-title">
+    <div class="section-head">
+      <span class="eyebrow" data-release-version>Dernière version</span>
+      <h2 id="download-title">Télécharger Multicord</h2>
+      <p>Pour Windows 10 et 11 (64 bits). Gratuit, sans compte à créer pour télécharger.</p>
+    </div>
+    <div class="download-grid">
+      <article class="download-card recommended">
+        <span class="badge">Recommandé</span>
+        <h3>Installateur</h3>
+        <p>S’installe en quelques secondes et <strong>se met à jour automatiquement</strong>. Raccourcis sur le bureau et dans le menu Démarrer.</p>
+        <a class="button primary" data-download="setup" href="https://github.com/arkunis/multicord/releases/latest">Télécharger l’installateur</a>
+        <small data-size="setup">Fichier .exe</small>
+      </article>
+      <article class="download-card">
+        <h3>Version portable</h3>
+        <p>Aucune installation : un seul fichier à lancer, pratique sur une clé USB. Elle vous prévient quand une nouvelle version sort.</p>
+        <a class="button ghost" data-download="portable" href="https://github.com/arkunis/multicord/releases/latest">Télécharger la version portable</a>
+        <small data-size="portable">Fichier .exe</small>
+      </article>
+    </div>
+    <div class="notice">
+      <strong>Windows affiche « Windows a protégé votre ordinateur » ?</strong>
+      <p>Les fichiers ne sont pas encore signés numériquement : la signature gratuite pour les projets open source est en cours de mise en place. Cliquez sur <em>Informations complémentaires</em> puis <em>Exécuter quand même</em>. Les fichiers sont construits automatiquement à partir du <a href="https://github.com/arkunis/multicord">code public</a>.</p>
+    </div>
+    <p class="all-releases"><a href="https://github.com/arkunis/multicord/releases">Toutes les versions et notes de mise à jour →</a></p>
+  </section>
+
+  <section class="faq" id="questions" aria-labelledby="faq-title">
+    <div class="section-head"><span class="eyebrow">Questions</span><h2 id="faq-title">Bon à savoir</h2></div>
+    <details><summary>Multicord est-il vraiment gratuit ?</summary><p>Oui. Multicord est un logiciel libre sous licence AGPL-3.0 : pas d’abonnement, pas de publicité, pas de fonctions payantes.</p></details>
+    <details><summary>Comment se passent les mises à jour ?</summary><p>Avec l’installateur, Multicord vérifie régulièrement s’il existe une nouvelle version, la télécharge en arrière-plan et vous propose de redémarrer. Si vous fermez simplement l’application, la mise à jour s’installe au prochain lancement. La version portable vous prévient et vous renvoie vers cette page.</p></details>
+    <details><summary>Où sont stockés mes messages ?</summary><p>Sur le serveur Multicord auquel vous vous connectez : celui de votre groupe ou le vôtre. L’application ne contacte aucun autre service, et la réduction du bruit fonctionne entièrement sur votre ordinateur.</p></details>
+    <details><summary>Puis-je héberger mon propre serveur ?</summary><p>Oui. Le serveur fonctionne avec SQLite ou PostgreSQL. Le <a href="https://github.com/arkunis/multicord#readme">guide sur GitHub</a> explique comment le lancer et l’ouvrir sur internet en HTTPS.</p></details>
+    <details><summary>Et sur Mac, Linux ou téléphone ?</summary><p>L’application de bureau est disponible pour Windows. Sur les autres systèmes, Multicord s’utilise dans le navigateur, à l’adresse du serveur de votre groupe.</p></details>
+  </section>
+</main>
+
+<footer class="footer">
+  <div class="brand small"><svg viewBox="0 0 44 36" fill="none" aria-hidden="true"><path d="M5 27V13c0-8 11-8 11 0v10-10c0-8 12-8 12 0v10-10c0-8 11-8 11 0v14" stroke="currentColor" stroke-width="5" stroke-linecap="round"/></svg><span>multicord<b>.</b></span></div>
+  <p>Logiciel libre sous licence <a href="https://github.com/arkunis/multicord/blob/main/LICENSE">AGPL-3.0</a> · <a href="https://github.com/arkunis/multicord">Code source</a> · <a href="https://github.com/arkunis/multicord/issues">Signaler un problème</a></p>
+  <p class="footer-note">Fait pour se retrouver.</p>
+</footer>
+<script src="main.js" defer></script>
+</body>
+</html>

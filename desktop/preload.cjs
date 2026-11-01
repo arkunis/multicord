@@ -9,5 +9,8 @@ contextBridge.exposeInMainWorld('multicordDesktop',Object.freeze({
  chooseSource:id=>ipcRenderer.invoke('desktop:choose-source',id),
  pickScreen:()=>ipcRenderer.invoke('desktop:pick-screen'),
  takeInvite:()=>ipcRenderer.invoke('desktop:take-invite'),
+ updateState:()=>ipcRenderer.invoke('desktop:update-state'),
+ installUpdate:()=>ipcRenderer.invoke('desktop:install-update'),
+ onUpdate:callback=>{const listener=()=>callback();ipcRenderer.on('desktop:update',listener);return ()=>ipcRenderer.removeListener('desktop:update',listener);},
  onInvite:callback=>{const listener=()=>callback();ipcRenderer.on('desktop:invite-ready',listener);return ()=>ipcRenderer.removeListener('desktop:invite-ready',listener);}
 }));
