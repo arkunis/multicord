@@ -1,0 +1,37 @@
+/* Une seule navigation contextuelle entre le rail et le contenu principal. */
+.home-navigation-slot{display:flex;flex:1;min-height:0;min-width:0;overflow:hidden}
+.home-navigation-slot .direct-sidebar{width:100%;min-width:0;max-height:none;flex:1;min-height:0;border:0;background:transparent;padding:0;display:flex;flex-direction:column}
+.home-conversation-search{display:flex;align-items:center;gap:8px;min-height:77px;padding:18px 15px;border-bottom:1px solid var(--line);color:#788e6a}
+.home-conversation-search>svg{flex:none}
+.home-conversation-search input{background:#ffffff04;color:#c1d1b6;border:1px solid #ffffff0c;border-radius:7px;padding:10px 9px;font-size:11px;outline:none;width:100%;min-width:0}
+.home-conversation-search input::placeholder{color:#809375}
+.home-conversation-search input:focus{border-color:#b9d8b24d;background:#b9d8b207}
+.home-social-links{padding:13px 10px 12px}
+.home-navigation-slot .friends-nav{display:flex;align-items:center;width:100%;margin-bottom:4px;padding:12px 13px;font-size:13px;text-align:left;gap:12px}
+.home-navigation-slot .friends-nav.selected{background:#b9d8b20d;color:#d0dfc5}
+.home-navigation-slot .friends-nav>svg{color:#8da17f;flex:none}
+.home-navigation-slot .direct-list-heading{margin:0 17px 10px;padding-top:20px;border-top:1px solid #ffffff0c;font-size:9px;letter-spacing:.5px;color:#8c9b82}
+.home-navigation-slot .direct-list{display:block;flex:1;min-height:0;overflow:auto;padding:0 9px 12px}
+.home-navigation-slot .direct-preview{display:flex;min-width:0;max-width:none;width:100%;margin:0 0 4px;padding:11px 9px;background:transparent;border-radius:7px}
+.home-navigation-slot .direct-preview:hover,.home-navigation-slot .direct-preview.selected{background:#b9d8b20b}
+.home-navigation-slot .direct-preview>.social-avatar{width:34px;height:34px;border-radius:11px;font-size:11px}
+.home-navigation-slot .direct-preview strong{font-size:12px}
+.home-navigation-slot .direct-preview strong>small{display:none}
+.home-navigation-slot .direct-preview>span>span{font-size:10px;line-height:1.4;color:#7f9173}
+.direct-list-empty{text-align:center;padding:40px 10px 20px;color:#6f8362}
+.direct-list-empty>svg{color:#829c72;stroke-width:1.4}
+.direct-list-empty>p{font-size:11px;line-height:1.9;margin:12px 0 16px}
+.direct-list-empty>button{display:inline-flex;align-items:center;justify-content:center;gap:6px;color:#aec79b;border:1px solid #b9d8b21c;background:#b9d8b205;border-radius:6px;font-size:10px;padding:9px 11px}
+.sidebar .user-panel{padding:12px 10px;gap:3px;min-height:70px}
+.sidebar .profile-button{gap:8px}
+.sidebar .profile-button>span:last-of-type{min-width:0;flex:1}
+.sidebar .profile-button .quick-copy-icon{display:none}
+.sidebar .profile-button strong{max-width:none;font-size:11px}
+.sidebar .profile-button small{font-size:8px;gap:4px;white-space:nowrap}
+.sidebar .profile-button .avatar{width:32px!important;height:32px!important;border-radius:11px}
+.sidebar .user-panel>.icon-button{padding:4px}
+.sidebar .user-panel>.icon-button svg{width:16px;height:17px}
+.social-hub>.social-content{width:100%}
+@media(min-width:1500px){.home-conversation-search{min-height:81px}}
+@media(max-width:1190px){.home-conversation-search{padding:18px 12px}.home-conversation-search input{font-size:10px}.home-navigation-slot .friends-nav{font-size:12px}.home-navigation-slot .direct-preview strong{font-size:11px}.home-navigation-slot .direct-preview>span>span{font-size:9px}}
+@media(max-width:690px){.home-navigation-slot .direct-sidebar{max-height:none;height:100%;padding:0}.home-conversation-search{min-height:60px;padding:11px 12px}.home-navigation-slot .direct-list{display:block;overflow:auto;flex:1}.home-navigation-slot .friends-nav{display:flex;font-size:13px;padding:12px}.home-navigation-slot .direct-list-heading{margin:0 17px 10px;padding-top:20px}.home-navigation-slot .direct-preview{min-width:0;max-width:none;margin-bottom:4px}.home-navigation-slot .direct-preview strong{font-size:12px}.home-navigation-slot .direct-preview>span>span{font-size:10px}.home-social-links{padding:12px 10px}.home-navigation-slot .direct-list-empty{padding-top:30px}}

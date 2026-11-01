@@ -1,0 +1,58 @@
+# Construit l'application Windows à chaque tag v*, la fait signer par SignPath
+# (programme gratuit SignPath Foundation pour les projets open source) puis publie la release.
+# Tant que les secrets SignPath ne sont pas configurés, la release contient les exe non signés.
+name: Windows release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    env:
+      SIGNING_READY: ${{ secrets.SIGNPATH_API_TOKEN != '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm test
+
+      - run: npm run desktop:dist
+
+      - name: Exe non signés
+        id: unsigned
+        uses: actions/upload-artifact@v4
+        with:
+          name: multicord-windows-unsigned
+          path: release/*.exe
+          if-no-files-found: error
+
+      - name: Signature SignPath
+        if: env.SIGNING_READY == 'true'
+        uses: signpath/github-action-submit-signing-request@v1
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: multicord
+          signing-policy-slug: release-signing
+          github-artifact-id: ${{ steps.unsigned.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: signed
+
+      - name: Release GitHub
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ env.SIGNING_READY == 'true' && 'signed/*.exe' || 'release/*.exe' }}
+          generate_release_notes: true

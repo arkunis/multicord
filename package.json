@@ -1,0 +1,42 @@
+{
+  "name": "multicord",
+  "version": "1.0.0",
+  "description": "Messagerie, salons et appels vocaux pour vos communautés.",
+  "license": "AGPL-3.0-or-later",
+  "author": "arkunis",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/arkunis/multicord.git"
+  },
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node --env-file-if-exists=.env server/index.js",
+    "build": "vite build",
+    "start": "node --env-file-if-exists=.env server/index.js --production",
+    "test": "node --test tests/*.test.js",
+    "desktop:icons": "node scripts/desktop-icon.mjs",
+    "desktop:dev": "npm run build && npm run desktop:icons && electron desktop/main.cjs",
+    "desktop:prepare": "npm run build && npm run desktop:icons && node scripts/desktop-stage.mjs",
+    "desktop:pack": "npm run desktop:prepare && electron-builder --config electron-builder.cjs --win --dir",
+    "desktop:dist": "npm run desktop:prepare && electron-builder --config electron-builder.cjs --win"
+  },
+  "dependencies": {
+    "@sapphi-red/web-noise-suppressor": "^0.4.1",
+    "bcryptjs": "^3.0.2",
+    "express": "^5.1.0",
+    "lucide-react": "^0.468.0",
+    "nodemailer": "^10.3.1",
+    "pg": "^8.16.3",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "sharp": "^0.35.5",
+    "socket.io": "^4.8.1",
+    "socket.io-client": "^4.8.1",
+    "vite": "^7.1.0"
+  },
+  "devDependencies": {
+    "electron": "^45.2.1",
+    "electron-builder": "^26.18.0"
+  }
+}

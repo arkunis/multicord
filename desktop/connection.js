@@ -1,0 +1,5 @@
+let config={};
+const url=document.querySelector('#server-url'),feedback=document.querySelector('#feedback'),button=document.querySelector('#submit');
+window.multicordDesktop.configuration().then(value=>{if(!value)return;config=value;document.querySelector(`input[name=mode][value=${value.mode}]`).checked=true;url.value=value.serverUrl;url.disabled=value.mode!=='remote';document.querySelector('#tray').checked=value.closeToTray;feedback.textContent=value.error;});
+document.querySelectorAll('input[name=mode]').forEach(input=>input.addEventListener('change',()=>url.disabled=input.value!=='remote'||!input.checked));
+document.querySelector('#connection').addEventListener('submit',async event=>{event.preventDefault();button.disabled=true;feedback.textContent='Connexion en cours…';const mode=document.querySelector('input[name=mode]:checked').value;try{const result=await window.multicordDesktop.saveConfiguration({mode,serverUrl:url.value||'http://localhost:3000',closeToTray:document.querySelector('#tray').checked,localPort:config.localPort});if(result?.error)feedback.textContent=result.error;}catch{feedback.textContent='La connexion a échoué.';}button.disabled=false;});

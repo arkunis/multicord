@@ -1,0 +1,45 @@
+<!doctype html><html lang="fr"><meta charset="utf-8"><title>Multicord — test WebRTC sans microphone</title><style>body{font:15px system-ui;background:#1b2118;color:#d2e5c4;padding:30px}button{background:#b9d8b2;padding:14px;border:0;border-radius:7px;cursor:pointer}pre{white-space:pre-wrap;line-height:1.9}video{width:180px;margin:8px;border-radius:6px}#status{font-size:24px}</style><h1>Diagnostic WebRTC Multicord</h1><p>Trois participants synthétiques. Aucun accès au microphone, à la caméra ou à l’écran.</p><button id="run">Tester audio et vidéo à trois</button><p id="status">Prêt</p><pre id="log"></pre><div id="videos"></div>
+<script type="module">
+import {io} from 'socket.io-client';
+import {VoiceSession} from '/src/voice.js';
+const log=(text)=>document.querySelector('#log').textContent+=text+'\n';
+const wait=ms=>new Promise(r=>setTimeout(r,ms));
+async function until(check,label){const end=Date.now()+16000;while(Date.now()<end){if(await check()){log('✓ '+label);return;}await wait(200);}throw new Error(label+' : délai dépassé');}
+const request=async(path,body)=>{const r=await fetch('/api'+path,{method:body?'POST':'GET',headers:{'Content-Type':'application/json'},...(body?{body:JSON.stringify(body)}:{})});if(!r.ok)throw new Error(await r.text());return r.json();};
+document.querySelector('#run').onclick=async()=>{
+  document.querySelector('#run').disabled=true;document.querySelector('#status').textContent='Test en cours…';
+  const sessions=[],sockets=[],audio=new AudioContext();let interval;
+  try{
+    await audio.resume();await request('/auth/register',{email:'media-'+crypto.randomUUID()+'@example.test',username:'Diagnostic',password:'synthetic-test-password'});const boot=await request('/bootstrap');
+    const server=await request('/servers',{name:'Test synthétique WebRTC'});const detail=await request('/servers/'+server.id);const ch=detail.channels.find(c=>c.type==='voice');
+    const canvases=[];
+    function fake(index){const destination=audio.createMediaStreamDestination();const tone=audio.createOscillator();const gain=audio.createGain();gain.gain.value=.01;tone.frequency.value=250+100*index;tone.connect(gain).connect(destination);tone.start();const canvas=document.createElement('canvas');canvas.width=320;canvas.height=180;canvases.push({canvas,index});return new MediaStream([...destination.stream.getTracks(),...canvas.captureStream(10).getTracks()]);}
+    interval=setInterval(()=>{for(const {canvas,index} of canvases){const c=canvas.getContext('2d');c.fillStyle=['#526e44','#6e5844','#4c5a72'][index];c.fillRect(0,0,320,180);c.fillStyle='white';c.font='20px system-ui';c.fillText('Participant '+index,25,75);c.fillText(new Date().toISOString().slice(11,23),25,110);}},100);
+    for(let i=0;i<3;i++){
+      const socket=io({forceNew:true,reconnection:false});sockets.push(socket);await new Promise((resolve,reject)=>{socket.once('connect',resolve);socket.once('connect_error',reject);});
+      const seen=new Set();const session=new VoiceSession(socket,boot.rtc,state=>{for(const {id,stream} of state.remote){if(seen.has(id))continue;seen.add(id);const v=document.createElement('video');v.autoplay=true;v.muted=true;v.playsInline=true;v.srcObject=stream;document.querySelector('#videos').append(v);v.play().catch(()=>{});}},message=>log('INFO '+message));sessions.push(session);await session.join(ch.id,fake(i));log('Participant '+i+' rejoint ; hôte : '+session.isHost);await wait(600);
+    }
+    await until(()=>sessions.every(s=>s.remote.size===2),'Chaque participant reçoit les deux autres flux');
+    await until(()=>sessions.every(s=>[...s.remote.keys()].every(id=>s.members.some(m=>m.streamIds.includes(id)))),'Chaque flux relayé est associé à son participant');
+    await until(()=>sessions.every(s=>[...s.peers.values()].every(({pc})=>pc.connectionState==='connected')),'Toutes les connexions WebRTC sont établies');
+    for(let i=0;i<3;i++){
+      await until(async()=>{let audioPackets=0,videoFrames=0;for(const {pc} of sessions[i].peers.values()){const stats=await pc.getStats();stats.forEach(stat=>{if(stat.type==='inbound-rtp'){if(stat.kind==='audio')audioPackets+=stat.packetsReceived||0;if(stat.kind==='video')videoFrames+=stat.framesDecoded||0;}});}return audioPackets>10&&videoFrames>5;},'Participant '+i+' : audio reçu et vidéo décodée');
+    }
+    const guestStream=sessions[1].local.id;
+    await sessions[1].camera(false);
+    await until(()=>[sessions[0],sessions[2]].every(s=>s.remote.get(guestStream)?.getVideoTracks().length===0),'Caméra invitée désactivée : retrait vidéo relayé sans couper l’audio');
+    const replacement=canvases[1].canvas.captureStream(10).getVideoTracks()[0];
+    sessions[1].local.addTrack(replacement);for(const {pc} of sessions[1].peers.values())pc.addTrack(replacement,sessions[1].local);
+    await until(()=>[sessions[0],sessions[2]].every(s=>s.remote.get(guestStream)?.getVideoTracks().length===1),'Caméra invitée réactivée : renégociation et relais');
+    sessions[1].screen=canvases[1].canvas.captureStream(10);sessions[1].announce();for(const {pc} of sessions[1].peers.values())for(const track of sessions[1].screen.getTracks())pc.addTrack(track,sessions[1].screen);
+    await until(()=>sessions[0].remote.size===3&&sessions[2].remote.size===3,'Partage d’écran synthétique reçu et relayé');
+    sessions[1].stopShare();
+    await until(()=>sessions[0].remote.size===2&&sessions[2].remote.size===2,'Arrêt du partage : retrait du flux chez les deux destinataires');
+    // Vérifie qu'un départ d'invité retire ses flux chez les autres.
+    sessions[2].destroy();await until(()=>sessions[0].remote.size===1&&sessions[1].remote.size===1,'Départ d’invité : retrait du flux chez l’hôte et l’autre invité');
+    const ended=new Promise(resolve=>sockets[1].once('voice:ended',resolve));sessions[0].destroy();await ended;log('✓ Départ de l’hôte : appel terminé');
+    document.querySelector('#status').textContent='RÉUSSI — audio, vidéo et relais à trois participants';document.body.dataset.result='passed';
+  }catch(e){log('ÉCHEC '+e.stack);document.querySelector('#status').textContent='ÉCHEC : '+e.message;document.body.dataset.result='failed';}
+  finally{clearInterval(interval);for(const s of sessions)s.destroy();for(const s of sockets)s.disconnect();await audio.close();}
+};
+</script></html>
